@@ -427,6 +427,240 @@ Still true from the earlier sessions: the run must be started by hand (the wizar
 so two clients still cannot reach a *run* unattended — this only proves the transport and the plugin
 path on the new machine.
 
+### Fifth: the real wizard sequence, captured by a human click-through (2026-10-17)
+
+`-coopwatch` was built exactly for this: it logs the active form plus the wizard's active buttons and
+their `UIButton.IsAvailable` state, and presses **nothing**. One instance was launched with it and a
+human clicked all the way into a run. The whole sequence, in order:
+
+```
+UISplashForm                                  <- publisher logo; ignores keys, needs a real click
+UIMenuSplashForm                              <- main menu; Play
+UIPlaySelectForm   UIBackButton UIMissionRoadButton_Elim UIMissionRoadButton_Escort UIPlayCrumb
+UIPlaySelectForm   UIBackButton MissionSectorButton_1..5 MissionGateButton_1..3
+                                (sector 4,5 and gate 4 report [unavailable]) UIPlayCrumb, UIPlayCrumb (1)
+UIPlaySelectForm   UIBackButton ClassSelectButton_Scout/_Gunner/_Engineer/_Driller UIPlayCrumb (1..3)
+UIPlaySelectForm   UIBackButton HazLevelButton, HazLevelButton (1), HazLevelButton (2) UIPlayCrumb (1..5)
+UILoadingForm
+GameController.OnCoreRunStarted player=True
+map: rocks=5/81 fingerprint=000000000000000000000000000000000000000000000000000000000001001000000010000000011
+map: settings biome=BiomeLevelData mission=Campaign mainMission=Elimination hazard=0
+```
+
+What this settles, and what it changes:
+
+- **There is no Next button anywhere in the wizard.** It advances by *selecting content*, in this
+  order: mission type → sector/gate → dwarf class → hazard → loading. So `DriveWizard()`'s
+  `next / start / confirm / continue / drop` fallback is unreachable and should be deleted, not left
+  in place as a guess.
+- **The sector/gate page needs two selections.** A sector *and* a gate are active in the same
+  snapshot, so the old "press the first sensible button every step" loop would press the same sector
+  over and over. The driver needs an ordered plan with a progress index.
+- **Button names accumulate Unity clone suffixes.** `UIPlayCrumb`, `UIPlayCrumb (1)`,
+  `UIPlayCrumb (2)` … so exact name matching silently misses duplicates. Match on the base name with
+  any trailing `" (n)"` stripped.
+- **Deterministic picks are what makes two instances meet.** Both instances share the real profile, so
+  "lowest available index", the same class and the same hazard put them in the same run — which is
+  what the shared-cave work needs. (`hazard=0` was simply the first hazard button.)
+- **A ready-made assertion.** `map: seeds Random=… ` together with
+  `map: rocks=N/81 fingerprint=<81 bits>` and `map: settings biome/mission/mainMission/hazard` is
+  exactly what a two-instance test should compare, and it needs no new plumbing.
+- **Still a guess:** whether the sector or the gate must be clicked *first* on that page. Both are
+  visible at once and the 2 s snapshots cannot show which the human hit first. The driver assumes
+  sector-then-gate and logs every press, so the next unattended run will show if the order is wrong.
+
+### First unattended attempt: the run-type tab needs a real pointer click (2026-10-17)
+
+With the driver in place, a two-instance `-coopauto` run gets a long way and then stops at exactly the
+wall the fourth attempt hit - but this time with usable evidence:
+
+- **Clearing the splash, pressing Play and reaching the wizard all work.** Play is
+  `pressing playButton 'Button_Cut_Play'`, after which the wizard appears. So `UIButton.OnClick.Invoke()`
+  is a working mechanism for at least that button.
+- **The wizard's *landing* page is the run-type list, not the mission list.** The human capture starts
+  at `UIMissionRoadButton_Elim / _Escort` because the human had already clicked past this page. The
+  landing page is: `UIBackButton UIChallengeSetButton_MissionRoad UISetProgressButton_Mastery[unavailable]
+  UISetProgressButton_Endless[unavailable] UISetProgressButton_Anomaly[unavailable]
+  UIFixedRunButton_Daily[unavailable] UIFixedRunButton_Weekly[unavailable] UIPlayCrumb`.
+- **Pressing `UIChallengeSetButton_MissionRoad` through `OnClick` does not change the page.** The log
+  shows the press being issued over and over (via the driver's logged fallback) with the page never
+  changing - the fourth attempt's result, reproduced with the one mechanism now known to work for Play.
+  So `OnClick` is sufficient for some buttons and not for this tab.
+- The driver consumed the tab as `plan[0]` and then stalled on `plan[1]` (`UIMissionRoadButton_`),
+  because the page it expected never appeared. Feeding it a fallback press did not help; the page has
+  to actually change.
+
+Next step, in the order the evidence points:
+
+1. **A real pointer click on the button.** Both the splash and Play behave correctly when driven by OS
+   mouse events, and the fourth attempt already ranked "compute the button's screen position from its
+   `RectTransform` and click it with a real mouse event" first. The mod can log the rect; the launcher
+   clicks it. This is the most faithful option and needs no assumption about which event the game uses.
+2. `OnPointerDown` + `OnPointerUp` with a `PointerEventData`, since `UIButton` implements its own
+   pointer handling and holds `_ClickCoroutine` / `_HoldCoroutine`.
+3. A real click on the *crumb* (`UIPlayCrumb`) rather than the set button, since the crumb may be the
+   control that actually swaps the page.
+
+### Solved: the wizard is driven by handler methods, not by button clicks (2026-10-17)
+
+A second unattended run pinned it down. Two presses were issued through `UIButton.OnClick` and the log
+shows plainly that neither moved the page, while one *method* call did:
+
+```
+18:04:36  pressing plan[0] UIChallengeSetButton_MissionRoad   (OnClick)  -> page did NOT change
+18:04:38  nudge - calling StartMainMissionsFlow()                        -> page DID change
+18:04:40  pressing plan[1] UIMissionRoadButton_Elim           (OnClick)  -> page did NOT change
+```
+
+- **`UIPlaySelectForm.StartMainMissionsFlow()` works** once the form is live. This is the transition the
+  fourth attempt could not make: it called `StartFixedRunFlow()` on a *dormant* form and got a
+  `NullReferenceException`, and concluded the wizard could not be driven. It can - the form just has to
+  have been opened by Play first.
+- **`OnClick` is inert for the wizard's selection buttons.** It works for `playButton` and it does not
+  work for `UIChallengeSetButton_MissionRoad` or `UIMissionRoadButton_Elim`. So the earlier conclusion
+  "`UIButton.OnClick` is the only thing that works on these screens" is wrong - it is right for the main
+  menu and wrong for the wizard.
+- **The real handlers are public methods on `UIPlaySelectForm`** (`DRS.UI`), each taking the thing to
+  select rather than relying on a button event:
+
+  ```
+  StartMainMissionsFlow()                          <- run type;  PROVEN to advance the page
+  OnMainMissionSelect(EMainMissionType)            <- mission within the road (Elimination/Escort)
+  OnMissionSectorClick(MissionSectorState)
+  OnMissionNodeClick(MissionNodeState)
+  OnBiomeNext(BiomeLevelData)
+  OnHazLevelNext(int hazLevel)
+  OnClassPageNext(EDwarf)
+  PageFlowNext()
+  ```
+
+  The three that take objects (`MissionSectorState`, `MissionNodeState`, `BiomeLevelData`) need the live
+  state obtained from the page rather than constructed; the enum/int ones (`EMainMissionType`, `EDwarf`,
+  `hazard`) do not. **This is the shape of the fix**: call these handlers in wizard order.
+
+- **The click-coordinate fallback does not work yet.** The logged point for the tab was
+  `clientx=-11 clienty=720 screensize=1280x720` - negative and exactly the screen height, i.e. nonsense,
+  so treating an overlay rect's world position as client pixels is wrong here (layout group, canvas
+  render mode, or a rect that is not the visual element). Do not use that path until the coordinates are
+  right; the handler route above is the better one anyway.
+
+Also worth noting: `UIMissionRoadButton_Escort` was `[available]` in the human capture but
+`[unavailable]` in this run, and `MissionSectorButton_4/5` were unavailable in both. So the mission
+road's availability is state-dependent, and a driver must pick *an available* option rather than a
+fixed one.
+
+### Cpp2IL dummy assemblies: what they do and do not give you (2026-10-17)
+
+To read what a game method actually *does*, the interop assemblies are useless - they are invoke stubs
+with signatures only. The next step up is Cpp2IL's dummy assemblies, which BepInEx can keep:
+
+```
+; BepInEx/config/BepInEx.cfg
+[IL2CPP] DumpDummyAssemblies = true
+```
+
+Then stash `BepInEx/interop` (rename it, do not delete - if regeneration fails you want it back) and
+relaunch once: Cpp2IL re-runs, and the dummies land in `BepInEx/dummy/`. On this build that produced
+**129 files**, including `Assembly-CSharp.dll` (3.0 MB) and `FundayFactory.UI.dll` (75 KB). Interop
+regenerated cleanly alongside them (132 files) and the chainloader still completed, so this is safe to
+do on the test copy. Decompile a single type rather than the whole assembly:
+`ilspycmd -t DRS.UI.UIPlaySelectForm BepInEx/dummy/Assembly-CSharp.dll`.
+
+**But the bodies are empty.** The dummies are better than interop, not a decompilation: Cpp2IL could
+not recover the IL, so every method body is `{ }` (`StartMainMissionsFlow() { }`,
+`BuildPageFlow() { return null; }`). What they *do* give you, accurately, is:
+
+- **signatures**, including the argument types that actually matter here;
+- **enums with their members**, which is where the wizard order below comes from;
+- **field offsets** (`[FieldOffset(Offset = "0x18")]`) and **nested types**;
+- **the native address of every method** (`[Address(RVA = "0x9764A0", Offset = "0x9758F0", Length = "0x7A")]`),
+  which is the entry point for real body work in Ghidra/IDA against the game binary (`GameAssembly.dll`).
+
+**The bodies turn out not to be needed for this task.** `StartMainMissionsFlow()` demonstrably moved
+the wizard page while its dummy body is empty - so these are ordinary managed methods that can be
+called by name, and the game does the work natively. Knowing the *signatures* was the whole
+requirement; that is the lesson worth keeping.
+
+Practical gotcha: redirecting `ilspycmd` output from PowerShell writes **UTF-16**, which reads as
+`u s i n g   S y s t e m ;` in every other tool. Pipe through `Out-File -Encoding utf8`.
+
+### The wizard's page order, from the game's own enum
+
+`DRS.UI.UIPlaySelectForm` declares a nested `EPage`, which is the authoritative sequence:
+
+```
+MISSION_TYPE, MAIN_MISSION_TYPE, MASTERY_TYPE, ANOMALY_TYPE,
+MISSION_SECTOR, MISSION_NODE, CHALLENGE, BIOME, HAZ, CLASS, CLASS_ARTIFACT
+```
+
+So the mission road page order is **run type → main mission type → sector → node → challenge → biome →
+hazard → class**, and the `On*` handlers line up with it one for one:
+
+```
+StartMainMissionsFlow()          -> enters the campaign flow (MISSION_TYPE);  PROVEN to work
+OnMainMissionSelect(EMainMissionType)   -> MAIN_MISSION_TYPE (Elimination / Escort)
+OnMissionSectorClick(MissionSectorState) -> MISSION_SECTOR
+OnMissionNodeClick(MissionNodeState)     -> MISSION_NODE   (the "MissionGateButton" page)
+OnChallengeSetNext(ChallengeDataSet) / OnChallengeNext(ChallengeData)
+OnBiomeNext(BiomeLevelData)              -> BIOME
+OnHazLevelNext(int hazLevel)             -> HAZ
+OnClassPageNext(EDwarf)                  -> CLASS
+```
+
+This corrects the plan order guessed earlier (which had sector-then-gate and no challenge/biome step),
+and it means the driver should follow `EPage`, not the button layout. All of these types are present in
+the dummy `Assembly-CSharp.dll` (`MissionSectorState`, `MissionNodeState`, `BiomeLevelData`, `EDwarf`,
+`EMainMissionType`), so the remaining work is obtaining the live state objects for the two that take
+one, not discovering the API.
+
+### Automated: the wizard is now driven with no human input (2026-10-17)
+
+Verified in a two-instance `-coopauto` run. Both instances walked the whole wizard unattended and
+landed in **the same cave**, with identical map fingerprints and no clicks from anyone:
+
+```
+plan[1] UIMissionRoadButton_Elim  -> plan[2] MissionSectorButton_1 -> MissionNodeButton_01
+     -> UISelectable_Hex_ClassArtifact -> ClassSelectButton_Scout -> HazLevelButton
+auto: IN RUN after 18 steps - automation done          (both instances)
+map: rocks=3/81 fingerprint=000000000000000000000000000000000000000000000000001000000000000000000010000000001
+map: settings biome=BiomeLevelData mission=Campaign mainMission=Elimination hazard=0
+```
+
+Two findings that made it work, both counter-intuitive:
+
+1. **The button click path is `UIButton.OnButtonClick()`, not `OnClick`.** It is a `protected virtual`
+   that each wizard button overrides - `UIMissionSectorButton.OnButtonClick()` calls the form's
+   `OnMissionSectorClick` with *its own* `sectorState`, so the state never has to be fetched. The
+   public `OnClick` UnityEvent is a different thing and is simply not wired on these buttons: invoking
+   it changes nothing. Nice detail from the dummy assembly: `MissionSectorState` holds
+   `List<MissionNodeState> Nodes` and `MissionNodeState GateState`, so the "gate" is itself a node.
+2. **`StartMainMissionsFlow()` must be called at most once.** Calling it again while already past the
+   first page restarts the flow from the top; a driver that fires it whenever the page changes will
+   walk the plan and then be dragged back to the first page every time, which is exactly what the log
+   showed before the fix.
+
+### Three launcher/driver bugs worth not repeating (2026-10-17)
+
+All three produced symptoms that looked like the *game* misbehaving:
+
+- **`OnClick` vs `OnButtonClick`** (above). `OnClick` works on `playButton` and does nothing on the
+  wizard, so "the button press did nothing" was really "the wrong event was invoked".
+- **A nudge that fired too often** (above). A repeated `StartMainMissionsFlow()` silently resets
+  wizard progress.
+- **Splash detection built on the absence of evidence.** `coop-click.ps1` decided it was past the
+  splash if the last `auto:` line was *not* a splash line. But the plugin logs
+  `auto: armed, watching UI state` before it has looked at any form, so the loop declared success
+  immediately, sent no click at all, and both instances sat on the publisher logo for 61 steps. Now it
+  requires **positive** evidence (`UIMenuSplashForm`, `pressing playButton`, `wizard page`, `IN RUN`).
+  Rule worth keeping: a wait loop should stop on proof of success, never on lack of proof of failure.
+
+Useful side effect of the fix: `-coopauto` now removes the hand-clicking that every earlier milestone
+needed, so world-state sync can be measured on a run that starts itself.
+
+Profile note: on this run only sector 1, only `Scout` and only `UIMissionRoadButton_Elim` were
+available; everything else reported `[unavailable]`. Picking "first available" is therefore the right
+strategy, and since both instances share the profile they pick the same thing and meet in one run.
+
 ## Next phase: world-state sync (enemies, pickups, terrain)
 
 The puppet is presentation only. The cave, the bugs and the loot are still per-instance, which is
