@@ -694,6 +694,30 @@ What the numbers already say (records in a real run, two instances, no clicks):
 - **Death goes through `Die`, not `DeSpawn`/`Recall`** (`die=19`, the other two 0). `Enemy.Die` is
   therefore the only unregister path worth wiring now.
 
+**Resolved, and the gap is narrower than it first looked (2026-10-17).** Rather than keep hunting the
+one missing hook, the registry is now completed from the spawner's own list: each tick, any enemy on
+`EnemySpawner.Enemies` without an id gets one, and a counter records how often that was necessary. The
+list the game maintains becomes the authority, so completeness no longer depends on having found every
+hook. Verified over a five-minute run, both instances:
+
+```
+host:   enemies=502  reg=502  peak=505  |  onSpawn=1165  dup=10  die=598  despawn=65  rec=10/1
+client: enemies=547  reg=547  peak=547  |  onSpawn=1169  dup=10  die=582  despawn=40  rec=10/1
+```
+
+`reg` equals the live count exactly on both sides, so an id can no longer go on the wire for an enemy the
+peer never learns about.
+
+`rec=10/1` is the more interesting number. The sweep had to act **once**, picking up ten enemies, and
+never again across 1165 spawns and 598 deaths. The guess recorded above - ongoing pool reuse - is
+therefore **wrong**: the ten are a one-time, start-of-run population that the hooks never see (a prewarmed
+pool fits, but that is not proven). Chasing it further is not worth it while the sweep closes it, and the
+counter will shout if the behaviour ever changes.
+
+**Correction:** the bullet above says death only goes through `Die`. That held in the short run it was
+measured in, but over a longer run `DeSpawn` fires too (`despawn=65` against `die=598`). Both are wired,
+so nothing is lost - but "only `Die`" was too strong a claim from too short a run.
+
 Confirmed signatures, read from the log rather than guessed (Harmony prints what it patched):
 
 ```
