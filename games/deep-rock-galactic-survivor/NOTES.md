@@ -661,6 +661,98 @@ Profile note: on this run only sector 1, only `Scout` and only `UIMissionRoadBut
 available; everything else reported `[unavailable]`. Picking "first available" is therefore the right
 strategy, and since both instances share the profile they pick the same thing and meet in one run.
 
+### Steam must be running, or the game boots to nothing (2026-10-17)
+
+Cost an hour, so it goes first. With Steam closed, the test copy still starts: BepInEx loads, the
+plugin loads, every Harmony patch installs cleanly, and the log looks healthy. But the game then sits
+with **no UI form at all** - `auto: step 202 - no active form, waiting` for four straight minutes -
+and never reaches the splash or the menu. `coop-click.ps1` clicks 45 times into the void.
+
+The misleading part is that nothing reports an error: no exception in the BepInEx log, no crash, the
+process stays alive, and the only symptom is that the automation says "no active form". If a run ever
+stalls like that again, **check that Steam is running before suspecting the mod**.
+
+### Enemy identity, measured: the hooks are not complete yet (2026-10-17)
+
+Stage 1 step 1 (assign ids and compare against the spawner's own list) was built to answer exactly one
+question before anything is sent over the wire: do the hooks see every enemy? They do not.
+
+```
+host:   reg=51  vs live enemies=61  | spawnAt=10  onSpawn=80  dup=10  noptr=0  die=19  despawn=0  recall=0
+client: reg=44  vs live enemies=54  | spawnAt=10  onSpawn=72  dup=10  noptr=0  die=18  despawn=0  recall=0
+```
+
+What the numbers already say (records in a real run, two instances, no clicks):
+
+- **`EnemySpawner.SpawnAt` chains into `Enemy.OnSpawn`.** Every one of the 10 `SpawnAt` calls arrived
+  at an enemy already registered (`dup=10`), so `OnSpawn` is the hook that actually fires per enemy;
+  `SpawnAt` is the caller-side entry. Patch both only if the caller side is needed for suppression.
+- **`reg` is below the live count**, by 10 on both sides, so some enemies reach the spawner's list
+  without passing through `OnSpawn`, or a pooled enemy is reused after we unregistered it (the pointer
+  is the same for a reused pooled object - `ByPointer` keys on the native pointer). Identify which
+  before assigning network ids: an id that the peer never learns about is a silent desync.
+- **Death goes through `Die`, not `DeSpawn`/`Recall`** (`die=19`, the other two 0). `Enemy.Die` is
+  therefore the only unregister path worth wiring now.
+
+Confirmed signatures, read from the log rather than guessed (Harmony prints what it patched):
+
+```
+EnemySpawner.SpawnAt(Enemy, Vector3, EnemySpawner.EEnemyScaleMode)
+EnemySpawner.SpawnAt(EEnemy, Vector3, EnemySpawner.EEnemyScaleMode)
+Enemy.OnSpawn(EnemySpawner, ObjectPool`1, Int32, EnemySpawner.EEnemyScaleMode, Single x6)
+Enemy.Die(EDamageType, Int64, Boolean) | Enemy.DeSpawn() | Enemy.Recall()
+```
+
+The nested enum really is `EnemySpawner.EEnemyScaleMode`, and `OnSpawn`'s six `Single` parameters are
+the stat modifiers.
+
+### A blocked run: the level-up screen stops everything (2026-10-17)
+
+A screenshot of both windows at the end of a run shows both sitting on **"LEVEL AUFSTIEG"** - the
+reward-choice screen - with identical state. Two facts come out of that:
+
+- The XP mirroring and the level-up barrier work: both dwarves levelled at the same time and both were
+  held at the choice, which is what the barrier was built for.
+- **Nothing dismisses the screen, because the automation deliberately stops.** `CoopAuto` sets its
+  done flag the moment it enters a run: the host log holds 28 `auto:` lines in total and the last one
+  is `auto: IN RUN after 19 steps - automation done` - nothing follows. Meanwhile the game pauses the
+  run while the reward choice is open, so the run freezes there. Two independent measurements confirm
+  it is the pause and not the sync code: the local position is frozen (`pos=(6.6,0.0,10.0)` across many
+  samples) and the enemy counts are frozen (`enemies=61`, `reg=51`) while the bot's own step counter
+  keeps climbing (`steps=10851 -> 11331`) - `LateUpdate` still runs, game time does not.
+  So the fix is not "teach the driver about another page"; it is that the driver must keep serving
+  modal screens after the run has started, instead of retiring.
+
+This is now the first blocker: no enemy/loot/terrain measurement is meaningful until a run can get
+past its first level-up unattended.
+
+### Two things that now work, and one that needs tolerating
+
+- The explicit `UISelectable_Hex_ClassArtifact` plan step is pressed by name (`plan[4] ... pressed`),
+  so the artifact page no longer depends on the fallback - when it appears where the plan expects.
+- **The page order varies.** On this profile the wizard went node -> class -> artifact -> hazard, not
+  node -> artifact -> class as the plan lists, and the fallback absorbed it. The plan should accept
+  both orders rather than assuming one.
+- **Determinism extends to spawning.** Both instances created the same first enemy at the same
+  coordinates - `+id=1 type=LOOTBUG/BASE pos=(82.8,0.0,24.2)` on host and client alike - because the
+  seed is forced and the bots act identically. Tempting, but the counts already diverge (61 vs 54), so
+  identity must still come authoritatively from the host; matching by type+position would work only
+  until the first difference.
+
+### Lesson: one bad patch must not take the mod down (2026-10-17)
+
+`[HarmonyPatch(typeof(EnemySpawner), "SpawnAt")]` with no argument types throws
+`AmbiguousMatchException` on an overloaded method. Because patch installation shared a `try` with
+plugin startup, that single exception skipped `AddComponent<CoopTick>()` and `CoopNet.Init()` - the mod
+was **completely dead** and the only trace was in the BepInEx log (`LogOutput*.log`, which is *not*
+`coop-<role>.log`): the per-instance role log simply stayed empty, which reads like "BepInEx did not
+start".
+
+Fixed twice over: enemy hooks resolve and patch each target individually with its own log line, and
+`ProbePlugin.Load()` now installs patches in their own `try` so a patch failure degrades instead of
+disabling. Rule worth keeping: **never let patch installation share a `try` with startup, and read the
+BepInEx log before concluding anything from the absence of a role log.**
+
 ## Next phase: world-state sync (enemies, pickups, terrain)
 
 The puppet is presentation only. The cave, the bugs and the loot are still per-instance, which is
