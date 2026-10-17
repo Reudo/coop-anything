@@ -5955,3 +5955,30 @@
   sources:
   - https://github.com/tjoaks/anchor-2s2h
   checked: '2026-10-16'
+- game: 'Deep Rock Galactic: Survivor'
+  year: 2024
+  engine: Unity 6 (IL2CPP)
+  project: '(none found)'
+  url: ''
+  other_urls: []
+  kind: gap
+  status: none
+  coop_scope: {}
+  players: unknown
+  networking: unknown
+  open_source: unknown
+  last_activity: unknown
+  qa: none
+  notes: No co-op or multiplayer mod of any kind found, and the shipped assemblies contain no networking
+    code at all - a full search of the game's own code turned up no transport, socket or Steam networking
+    layer. Co-op therefore has to be built from scratch as a mod. An unpublished local prototype exists
+    and is written up in games/deep-rock-galactic-survivor/ (same cave on two instances, dwarves visible to
+    each other, shared XP, level-up pause that waits for both players). It has no release, so the directory
+    keeps this as a gap.
+  sources: []
+  checked: '2026-10-17'
+  searched:
+  - 'Full search of the shipped game assemblies for networking APIs (none found)'
+  - 'WebSearch: co-op / multiplayer mod for Deep Rock Galactic Survivor across github.com, nexusmods.com,
+    moddb.com, steamcommunity.com (none found)'
+  - 'Not checked: official Discord history for developer statements; Reddit not checked'
