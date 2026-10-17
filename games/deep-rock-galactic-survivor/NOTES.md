@@ -726,6 +726,29 @@ reward-choice screen - with identical state. Two facts come out of that:
 This is now the first blocker: no enemy/loot/terrain measurement is meaningful until a run can get
 past its first level-up unattended.
 
+**The names, captured from a run** (the driver now keeps watching instead of retiring once in a run,
+which is what produced them):
+
+```
+auto: watch: active=UICoreForm        <- the in-run HUD
+auto: watch: active=UILevelUpForm     <- the screen that blocks everything
+```
+
+Frozen confirmed independently of the driver: on *both* instances the local position is byte-identical
+across four consecutive samples (`(-11.7,0.0,-2.5)` on the host, `(-1.1,0.0,-11.9)` on the client) with
+the enemy count constant, while `auto: watch: active=UILevelUpForm` is the last state observed. The game
+really does pause the run on that screen.
+
+`DRS.UI.UILevelUpForm` carries `skillButtons : UISkillButton[]` and `skillButtonsLeftToRight` for the
+cards, `rerollButton : UIButtonPrice` for "swap all", plus `onFinishedCallback` and a `LevelUpManager`
+with an `IEStartFlow` coroutine. **The cards are `UISkillButton`, not `UIButton`** - and every wizard
+helper only enumerates `UIButton` - so even a driver that was running would not have seen them. That is
+the concrete reason nothing ever dismissed this screen, and it was invisible from the outside.
+
+Two routes out, and the second is the better one: press a `UISkillButton` (needs checking whether it
+derives from `UIButton`, i.e. whether `OnButtonClick` is the path again), or complete the choice through
+`LevelUpManager`, which owns the flow and the finish callback and so avoids the presentation entirely.
+
 ### Two things that now work, and one that needs tolerating
 
 - The explicit `UISelectable_Hex_ClassArtifact` plan step is pressed by name (`plan[4] ... pressed`),
