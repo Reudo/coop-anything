@@ -718,6 +718,28 @@ counter will shout if the behaviour ever changes.
 measured in, but over a longer run `DeSpawn` fires too (`despawn=65` against `die=598`). Both are wired,
 so nothing is lost - but "only `Die`" was too strong a claim from too short a run.
 
+### Suppressing `SpawnAt` does not silence a client: the wave path bypasses it (2026-10-17)
+
+First attempt at stopping the client from running its own waves was a prefix on `EnemySpawner.SpawnAt`
+returning false on a client. Measured result - it catches only a sliver:
+
+```
+host:   enemies=367  reg=367  |  spawnAt=10  onSpawn=943  sup=0   rec=10/1
+client: enemies=193  reg=193  |  spawnAt=8   onSpawn=804  sup=8   rec=0/0   noptr=8
+```
+
+`sup=8` shows the refusal works, and `noptr=8` is its harmless side effect (the postfix then runs with a
+null result and counts a missing pointer). But the client still ended up with **193 enemies**, every one
+of them reported by `OnSpawn`: **943 / 804 `OnSpawn` calls against 10 / 8 `SpawnAt` calls.**
+
+So the wave machinery does not go through `SpawnAt` at all. `EnemySpawner.Spawn(SpawnData, ...)` and
+`Spawn(Enemy prefab, int count, ...)` are separate entry points, and the claim repeated in this file and
+in the plan - "`SpawnAt` is the single spawn choke point" - is **wrong**.
+
+Consequence: suppression has to cover every spawner entry point, or move to `OnSpawn`, which is the one
+hook that does fire for every enemy. The same correction applies to the plan, where the network spawn
+message was going to be driven off `SpawnAt` for the same reason.
+
 Confirmed signatures, read from the log rather than guessed (Harmony prints what it patched):
 
 ```
