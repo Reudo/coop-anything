@@ -740,6 +740,29 @@ Consequence: suppression has to cover every spawner entry point, or move to `OnS
 hook that does fire for every enemy. The same correction applies to the plan, where the network spawn
 message was going to be driven off `SpawnAt` for the same reason.
 
+### Client spawner silenced - all four entry points, verified (2026-10-17)
+
+The refusal now covers every spawner entry point, and the signatures below are not guesses: Harmony logs
+what it patched, so this is what the game actually has.
+
+```
+EnemySpawner.SpawnAt(Enemy, Vector3, EnemySpawner.EEnemyScaleMode)
+EnemySpawner.SpawnAt(EEnemy, Vector3, EnemySpawner.EEnemyScaleMode)
+EnemySpawner.Spawn(SpawnData, EnemySpawner.EEnemyScaleMode)                     <- bypassed SpawnAt
+EnemySpawner.Spawn(Enemy, Int32, Boolean, EnemySpawner.EEnemyScaleMode, Int32)
+```
+
+Measured on a client, whole run: `enemies=0 peak=0`, while the host ran 296-315 of its own. The client
+stayed healthy - the local position kept advancing between samples (`(2.6,0.0,-11.7)` -> `(11.9,0.0,-1.4)`)
+- and there were **zero exceptions** in either BepInEx log.
+
+That last point was the real question: the list-returning `Spawn(SpawnData, ...)` is now skipped entirely,
+so it returns null, and its callers do not dereference it. The game tolerates a client whose wave
+machinery produces nothing at all, which is a stronger result than expected - no `SuppressSpawnCount`, no
+`RecallAll`, no half-measures needed.
+
+The client is therefore a clean slate for host-authoritative enemies, which is what stage 1 needed.
+
 Confirmed signatures, read from the log rather than guessed (Harmony prints what it patched):
 
 ```
