@@ -741,13 +741,59 @@ really does pause the run on that screen.
 
 `DRS.UI.UILevelUpForm` carries `skillButtons : UISkillButton[]` and `skillButtonsLeftToRight` for the
 cards, `rerollButton : UIButtonPrice` for "swap all", plus `onFinishedCallback` and a `LevelUpManager`
-with an `IEStartFlow` coroutine. **The cards are `UISkillButton`, not `UIButton`** - and every wizard
-helper only enumerates `UIButton` - so even a driver that was running would not have seen them. That is
-the concrete reason nothing ever dismissed this screen, and it was invisible from the outside.
+with an `IEStartFlow` coroutine.
 
-Two routes out, and the second is the better one: press a `UISkillButton` (needs checking whether it
-derives from `UIButton`, i.e. whether `OnButtonClick` is the path again), or complete the choice through
-`LevelUpManager`, which owns the flow and the finish callback and so avoids the presentation entirely.
+**Correction to an earlier claim in this file:** `UISkillButton` is declared `class UISkillButton :
+UIButton`, so the cards are *not* structurally invisible to a `UIButton` enumeration - an earlier
+revision of this note said they were and that was wrong. The reason nothing pressed them is simply that
+the driver had already retired before any of this code ran. Worth keeping straight, because the fix
+differs: it is "keep serving screens after the run starts", not "learn a second button type".
+
+The chosen route is to press a card (any one completes the local choice; the XP barrier then waits for
+the peer). It targets `UISkillButton` specifically rather than "the first pressable button on the form",
+because the same screen carries the reroll control - a `UIButtonPrice` - and picking that would spend
+currency to reroll the offer instead of accepting it.
+
+The alternative, if pressing a card turns out not to complete the choice, is to finish through
+`LevelUpManager`, which owns the flow and the finish callback and so bypasses the presentation.
+
+### Resolved: the level-up no longer freezes a run (2026-10-17)
+
+Pressing a card does not answer the choice. A measured run pressed `SelectableWindow_SkillSelect`
+through the ordinary `UIButton` path - the same path that works on the wizard - and the screen stayed
+up with the run still frozen. The form's own API says why: the button click lands in `OnSkillSelected`,
+which only *previews* a card, while `OnSkillChosen` is the one that commits. Invoking `OnSkillChosen`
+directly threw `TargetInvocationException`, and that failure was invisible for one round because the
+patch was reporting `e.Message` and discarding `e.InnerException` - a reflection call hides the real
+error there. **Log the inner exception whenever a reflected call can throw.**
+
+What works is `LevelUpManager.OnLevelUpFinished()` - the entry point this module already uses to release
+the XP barrier, which made it the one call in that area known to move the flow on. The driver now calls
+it whenever `UILevelUpForm` is open, and the barrier still holds until the peer has answered too.
+
+Verified in a run: `auto: level-up finished through LevelUpManager` on both instances, six times over,
+with the local position changing between samples (`(1.7,0.0,-11.9)` -> `(11.9,0.0,-1.5)` ->
+`(4.9,0.0,11.0)`) and enemy counts rising to 561/464. A run now survives repeated level-ups with no
+human present, which is what every later measurement needs.
+
+**Limitation, deliberately accepted:** the dwarf takes no reward from those level-ups. That is fine for
+a test bot whose job is to keep a run alive, but it is not what a player wants - so this is an
+automation-only shortcut, not the co-op behaviour. A real fix should go through the reward screen.
+
+Also worth noting from the same run, because it is the next problem: host and client enemy counts have
+diverged badly by this point (561 against 464). Two instances now run long enough for that to matter,
+which is exactly what stage 1 exists to fix.
+
+### A stale binary looks exactly like a fix that does not work (2026-10-17)
+
+The first attempt to test the level-up fix silently measured the *previous* build: `Copy-Item` failed
+with the DLL held open by a leftover game process, and the script carried on and launched anyway. Any
+conclusion drawn from that run would have been wrong, and it would have looked like the fix failing
+rather than the deploy failing.
+
+The deploy step now kills the game, retries the copy until the file is not locked, compares source and
+destination hashes, and **aborts instead of running a stale binary**. Keep that check when running
+unattended: a build that never reached the plugins folder produces the same evidence as a broken change.
 
 ### Two things that now work, and one that needs tolerating
 
