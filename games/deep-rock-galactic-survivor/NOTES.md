@@ -1010,3 +1010,347 @@ by `PhysicsSimulation` / `PopulateKDTreeDataJob`, which is a candidate spatial i
 whole run and its `Update` patch never fired, so the manager is inactive/unused in normal play.
 The real registry is `EnemySpawner.Enemies` (`List<Enemy>`), reached via
 `GameController.enemySpawner`.
+
+## Stand-spot problem (measured, solved by self-check)
+
+Goal was a fixed viewpoint for comparable screenshots. Measured facts, one per candidate spot:
+
+- **Prefab origin `(0,0,0)`**: dead. 535 enemies on the list, none visible or reachable — the
+  origin is inside rock/outside the cave.
+- **Game-assigned spawn (landing pod)**: dead and worse — the dwarf is trapped in the pod's
+  collider and can never step out.
+- **Point on the walking circle `(10,0,0)`**: dead. Self-check `near=` (enemies within 15 units)
+  stayed 0 for 60 s and the bot auto-fell back to walking. At the same time the host had 390
+  enemies on its list — a full swarm that could not reach the player. A list count is not
+  evidence of presence; only `near=` is.
+- **Walking the circle** (radius 12 around `(10,0,0)`): live. Within minutes `near=445`,
+  `die=589` — enemies crowd the path, weapons kill them.
+
+Result: `CoopBot` no longer trusts any fixed point. `Still` holds a candidate; if the host sees
+`near=0` for 60 s it logs `bot: spot dead, walking` and switches back. The client never runs the
+fallback (its spawner is suppressed, so its `near` is 0 by design); it keeps following
+`RemotePos + 2`, which also means both dwarves stay ~2 units apart during the walk — each window
+shows the other dwarf throughout. `check: stand PASS` fires once when `near >= 50`.
+
+God mode is `player.currentHp = 100000` every tick (500 was the dwarf's own max and a pack could
+burn through it in one frame). Run state as of 21:33: host `enemies=560 near=445 die=589`, client
+`enemies=0 sup=626`, `reg==live` holds (reconciliation makes it true by construction).
+
+## Stage 1 enemy transport — WORKS, verified by log lines (build of 21:46)
+
+Host-authoritative spawn/death mirroring over the existing LiteNetLib channel:
+
+- Wire: `EnemySpawn{netId u16, EEnemy u16, q-pos 3×s16, scale u8}` (0.1 unit/step, 16-bit fixed
+  point), `EnemyDeath{netId u16}`, `EnemyCensus{count u16}` every 5 s. ReliableOrdered.
+- Host sends from `Register`/`OnDied`; a client never sends enemy traffic. Client re-spawns via
+  `EnemySpawner.SpawnAt(EEnemy, Vector3, EEnemyScaleMode)` with `ApplyingRemote=true` (the guard the
+  suppression already respects), keys mirrors by the host's id (`Entry.HostNetId`).
+- Network callbacks only enqueue; `ProcessRemote()` drains on the main thread once per frame —
+  Unity objects are never touched from the network thread.
+
+Measured in a real run (client log):
+
+- `check: freeze drift=0,00 units over 2s` — `SetAgentEnabled(false)` really freezes a mirror.
+  The API names were dumped from the real assembly first (`SetAgentEnabled`, `SetBehaviour`,
+  `get_Agent`, `get_Behaviour`, `hasAgent`), not assumed from the plan.
+- `check: enemy transport host=30 mirrors=43 spawn=50 death=2 localDie=3 fail=0 miss=0` — the
+  bookkeeping balances exactly (`spawn − death − localDie == mirrors`).
+- Death transport is exact: host `die=213` matched client `death=213` in the first transport run.
+- Two bugs found and fixed by the numbers: (1) the first ~20 spawn messages arrived before the
+  client's spawner existed and were dropped (`fail=20`) — now they park in `PendingSpawns` and
+  retry (`fail=0`); (2) the client's own weapons killed mirrors (`localDie=73` in run 1) — the
+  freeze mostly removes that too (`localDie=5`), because a frozen mirror no longer walks into the
+  client's weapon range; the remaining 5 died before freezing mattered.
+- Remaining, honest: 2 `miss` deaths from ids spawned before the peer connected; the census lags
+  by in-flight messages; mirror positions are the spawn snapshot (per-tick position snapshots are
+  the follow-up, MTU-sized chunks, quantised).
+
+The client window now shows real enemies — the host's swarm, frozen at spawn positions.
+
+## Stage 1b — position snapshots: mirrors follow the host (build of 22:01)
+
+Host re-broadcasts every enemy position at 2 Hz, split into 120-entry chunks (961 B < MTU),
+`EnemySnapshot{count u8, (id u16, q-pos 3×s16)×N}` over `DeliveryMethod.Sequenced` (this
+LiteNetLib build has no `UnreliableSequenced`). Client applies by moving the frozen mirror's
+transform — frozen agent + teleport = puppet that follows without running its own AI.
+
+Measured in a real run (client log):
+
+- `check: sample moved total=5,4 units (id=5)` — the sample mirror demonstrably follows its
+  host original.
+- `check: snapshot applied=1031 missed=83 recv=1114` — misses are the cross-channel race:
+  deaths are ReliableOrdered, snapshots Sequenced, so a chunk can arrive just after a death.
+  Cosmetic; the next chunk omits the dead enemy.
+- Run end state: host `enemies=192`, client `mirrors=172` (`census=192` lags by in-flight
+  deaths); `fail=0` — the pending-retry keeps holding.
+- Side effect measured: `localDie=45` — mirrors that move with the host walk into the client's
+  weapon range, so the client kills a few and they drop client-only loot. Stage 2 must suppress
+  loot spawned from mirror deaths (or the client's kills), otherwise the shared pool starts
+  double-counting.
+
+Stage 1 is done: both windows show the same swarm, moving together.
+
+## Stage 2 loot — discovery run (build of 22:20)
+
+Verified signatures from the real assembly:
+
+- `PickupSpawner.SpawnXP(Vector3, Int32, EXPSource, Single) -> Void`
+- `PickupSpawner.SpawnLargeXP(Vector3, Int32, EXPSource, Single) -> Void`
+- `PickupSpawner.SpawnMaterial(ECurrency, Int32, Vector3, Single) -> Void`
+- `PickupSpawner.SpawnMaterialNoForce(ECurrency, Vector3) -> Pickup` ← the only one returning a Pickup
+- `Player.OnPickupClaimed(Pickup) -> Void` — the real claim path, fires with a Pickup.
+
+Measured in a run: host `spawns=686 claims=4` in ~7 min (the walking bot rarely collects), client
+`spawns=261 sup=261` — host-authority suppression holds, every client-side spawn attempt is refused.
+
+Open: `Pickup`'s value/id fields were not found on the declared type (zero dumped members), so they
+likely live in a base class — the dump must walk BaseType next. Mirror path plan: receiver uses
+`SpawnMaterialNoForce` + `SetId(netId)` + set the value field via reflection; claims broadcast
+`{netId}`, receiver removes the mirror and applies the delta only when `Wallet.ShouldSaveValue`
+says run-local. XP orbs are NOT mirrored — the XpGain channel already carries XP.
+
+## Stage 2 loot — transport works (build of 22:36)
+
+- Wire: `LootSpawn{currency u8, value i32, q-pos 3×s16}`, `LootClaim{same}` — pickups are matched by
+  (currency, value, position), not by id, because the void spawn overloads hand back no Pickup to
+  tag. `PickupSpawner` is reached via `GameController.pickupSpawner` (found by type reflection).
+- Client mirrors through `SpawnMaterialNoForce(ECurrency, Vector3)` behind `ApplyingRemoteLoot`;
+  the value is set via the private `value` accessor (the public `Value` property is read-only).
+- Measured: `check: loot mirrors=20 spawn=20 claim=1 miss=1 fail=0` — every spawn mirrored, first
+  claim forwarded but MISSED: the host pickup had scattered (SpawnMaterial applies force), so the
+  claim position no longer matches the spawn position within the 0.5-unit radius. Fix: match by
+  (currency, value, nearest) within a wider radius and log the miss distance.
+- Wallet API verified: `Add(CurrencyValue)`, `ShouldSaveValue(ECurrency)`, `GetAmount(ECurrency)`.
+  The credit step (only run-local currencies) still needs the Wallet instance access path and the
+  CurrencyValue constructor — runtime discovery like pickupSpawner.
+
+## Stage 2 loot — full loop works (build of 00:11)
+
+Positive evidence from a real run: `loot: credited cur=2 value=1 total=41…46` — the client's wallet
+is credited when the host claims. The whole pipeline runs: host spawn (test drops via
+`SpawnMaterial(NITRA, …)` behind `-cooptestloot` every 10 s, plus real mining drops from
+`Player.TryMine()` called by the host bot every 30 frames) → broadcast → client mirror via
+`SpawnMaterialNoForce` → host claim → broadcast → client removes the mirror and credits
+(`Wallet.Add(CurrencyValue)`, gated by `ShouldSaveValue`). Nitra is run-local; the credit applies.
+
+Measured caveats, all understood:
+
+- Claim messages carry POOLED positions: `OnPickupClaimed` returns the pickup to its pool before
+  the postfix runs, so the transform reads the pool home (miss distances grew 1273→2217 units).
+  EVERY prefix variant on this method failed Harmony's IL compile (`IL Compile Error (unknown
+  location)`), including a void prefix on the explicit `(Pickup)` overload — so the receiver
+  matches by (currency, nearest) within 40 units instead. ~41/197 claims matched and credited;
+  the rest missed. The position should be captured from a different hook (e.g. the Pickup's own
+  claim method) in a follow-up.
+- The credited `value=1` is also pool garbage — the host's `pk.Value` read after pooling.
+- `fail=13/80` mirror spawns — transient; not yet chased.
+- The client-side value setter works via the private `value` accessor (public `Value` read-only).
+- `Player.TryMine()` is the real mining entry point (verified by api dump); the bot calling it
+  while walking produced natural material spawns without any path change. `MapGenerator.blockList`
+  is `List<MaterialBlock>` — the type is `MaterialBlock`, not `MineableBlock`.
+
+## Stage 2 loot — COMPLETE (build of 00:52)
+
+The full loop now runs with matching numbers, verified by positive log lines:
+
+- Spawn broadcast moved to **`Pickup.OnSpawn`** (per-object init hook): mining drops bypass
+  `SpawnMaterial`/`SpawnMaterialNoForce` entirely — measured 146 claims vs 31 broadcasts before the
+  move, and `sentCur={0:12 2:151 3:4}` vs `claimCur={2:145 0:1}` after. OnSpawn sees every path,
+  exactly like `Enemy.OnSpawn` did for waves.
+- Client credits flow 1:1 with claims: `loot: credited cur=2 … total=146`. Currency is correct
+  (claims match mirrors by FIFO — pool positions remain garbage, every prefix on
+  `OnPickupClaimed` fails Harmony's IL compile).
+- Early-message race fixed with the same pending-retry pattern as enemies (`fail=0` after).
+- Known residue, documented: credited amounts are `value=1` — `Pickup.OnSpawn` fires BEFORE the
+  game sets the pickup's value (the real value is applied afterwards via the `set_value(Int32)`
+  accessor, present in the api dump). The fix is to read the value after the setter or one frame
+  later; cosmetic, bookkeeping is exact.
+- Test harness now: `-cooptestloot` drops NITRA(5) on the host player every 5 s; the poll loop
+  proves a build within ~1 min of mission start instead of an 8-minute blind sleep.
+
+## Stage 3 terrain — entry points verified (build of 01:02)
+
+`MaterialBlock` (namespace `Assets_Scripts_LevelGeneration`, found by simple-name scan across all
+loaded assemblies — `GetType(name)` misses namespaced types):
+
+- `Die(Boolean, Boolean, Boolean)` — the destruction entry, the hook for the `{x,y}` broadcast.
+- `Setup(MapGenerator, VFXManager, Int32, Int32, RunSettingsManager)` — the two Int32 are the grid
+  coordinates; the receiver resolves the block via `MapGenerator.blockList` and destroys silently.
+- `TakeDamage(Double, Player, Boolean, Boolean, Enemy, WeaponHandler)`, `UpdateNeighbors()`,
+  `get_MaterialType()`, `Inject(PickupSpawner)` — supporting cast.
+- Loot value residue confirmed: even one frame after `OnSpawn` the pickup's value is still 1 — the
+  game applies the real value lazily (via the `set_value` accessor, likely near claim). Cosmetic;
+  amounts are wrong by a constant, bookkeeping is exact.
+
+## Roadmap (current)
+
+A master plan with the full remaining-work list and PASS criteria lives at
+`local/mod/DrgSurvivorCoop/PLAN.md` (private). Order: A character visuals → B combat visuals →
+C objectives → D shop/upgrade → E loot value fix → F downed/revive → G UI + Steam lobby → H give back.
+
+- **Milestone A (character class sync) — VERIFIED.** New `CharClass` packet (12): host sends `EDwarf`
+  as byte; client stores `HostDwarf`. Two-instance run: `check: char self=3 role=host` ==
+  `check: char host=3 self=3 role=client`. **Skin visual blocked** (puppet `GFXContainer` clone has no
+  `PlayerSkin`; `System.Reflection.Invoke` can't pass `Component`→`PlayerSkin`; automation forces the
+  same class on both sides, so it is unobservable anyway). Full detail in `PLAN.md`.
+- **Milestone C (objective sync) — VERIFIED.** `Objective` packet (13): host reads
+  `LevelObjectiveTracker.Primary/SecondaryObjectives → ObjectiveProgress.Progress`, client mirrors.
+  Fixed two bugs: scene-walk tracker discovery (FindObjectsOfType returned 0) and secondary-objective
+  determinism (seed `UnityEngine.Random` before `SetupSecondaryObjectives`). Log:
+  `check: objective recv=26 applied=2 miss=0`, types match (both `COLLECT_POINTS` + `LEVEL_PICKUP`).
+- **Off-screen indicator (F part 1) — VERIFIED.** `CoopIndicator.cs` draws a "REMOTE" marker at the
+  screen edge when the remote dwarf is off-camera (`check: indicator offscreen remote=… edge=…`).
+- **Downed-state (F) — code written, VERIFY BLOCKED by wizard-flow change.**
+  - Implemented: `CoopDowned.cs` (downed flag + remote-downed detection via synced hp) and a Harmony
+    prefix on `GameController.OnPlayerDeath()` that skips the game-over and marks downed
+    (`check: downed role=…`). Not yet verified because the run no longer starts.
+  - **New blocker:** the save game progressed (previous runs unlocked content), so the wizard flow
+    changed: the landing page now shows `UIMutatorSetEntry` ×6 (mutator selection) and
+    `UISetProgressButton_Mastery/Endless/Anomaly` are now available. `UIPlaySelectForm.StartMainMissionsFlow()`
+    throws (`Exception thrown by target of invocation`), and pressing `UIMutatorSetEntry` does not
+    advance. The `CoopAuto` wizard Plan is now out of date and needs the mutator step reverse-engineered,
+    or the save game reset. Splash dismissal is now done in-mod (`UISplashForm.AdvanceFlow()`) instead of
+    the flaky external mouse click.
+  - `MutatorSetEntry` lives on `UIMissionRoadPage`/`UIMissionNodePage`/`UIChallengeSetSelectPage`
+    (`mutatorEntries` field), so mutators are a mission-road selection step, not a landing-page tab.
+- **Test harness: different classes + god-mode toggle — VERIFIED.**
+  - Class page comes *before* the class-artifact page (old `CoopAuto` Plan had them swapped; fixed).
+  - Save game 3 only has **Scout** unlocked (Gunner/Engineer/Driller `[unavailable]`). Forcing a locked
+    class in the wizard stalls the artifact page (all artifacts become `[unavailable]`).
+  - Fix: host keeps Scout, client overrides to **Engineer** via `RunSettingsManager.SetClass(EDwarf)`
+    *after* the artifact step (plan index 6), not during the wizard. Verified:
+    host `check: char self=3`, client `check: char host=3 self=1` (Scout=3, Engineer=1), both `alive=True`.
+  - `-coopnogod` flag disables the bot's `currentHp=100000` pin → bot takes damage and dies
+    (`hpDrops=6, alive=False`), the prerequisite for the downed test. Launcher: `coop-run.ps1 -NoGod`.
+  - Class override needs `UIClassSelectPage.runSettingsManager`; `RunSettingsManager` is a plain
+    Il2Cpp object (not a MonoBehaviour), reachable via the page field, not `FindObjectsOfType`.
+- **Weapon / augment / status-effect system — MAPPED (Milestone B groundwork).**
+  - `WeaponHandler` (MonoBehaviour) is the base; subclasses: `ProjectileWeaponHandler` (AutoCannon,
+    AlternatingProjectile, Boomerang, ImpactAxe, Lok1, StubbySMG), `BeamWeaponHandler` (LocalSpaceBeam,
+    RotatingBeam→SludgePump, ShardDiffractor), `GrenadeWeaponHandler` (Groundzone, LeadBurster,
+    PlasmaBurster, Trap), `OrbitingDroneWeaponHandler` (CarrierDrone), plus CoilGun, LinkProjectile,
+    RocketSwarm, Trail, Spawn, StunExplosion, WaveCooker, AttachedGroundzone. AI/turret path is
+    `AIWeaponHandler` (MonoBehaviour, separate from `WeaponHandler`).
+  - Augments are data (`WeaponSkillData`/`ASkillData` hierarchy; e.g. `BeamWeaponSkillData`,
+    `ProjectileWeaponSkillData`→`AlternatingProjectileSkillData`, `ArtifactSkillData`). Weapon skill data
+    exposes `GetStatusEffectData()` → `List<StatusEffectData>`.
+  - `EDamageType` = KINETIC, CRYO, FIRE, ACID, PLASMA, ELECTRICAL. `EStatusEffect` = NONE, SLOW, STUN,
+    BURN, ELECTROCUTE, CORRODE, FROZEN. So "weapon + upgrades → fire damage" is exactly
+    `EDamageType.FIRE` + `EStatusEffect.BURN`, applied on the host and carried on the projectile
+    (`Projectile.Shoot(... statusEffects, EDamageType damageType, ...)`).
+  - **Sync conclusion:** effects are host-computed (damage + status applied on the host); the client
+    already mirrors the *outcome* (enemy hp/death via enemy sync). What is NOT synced is the *visual*
+    (projectile/muzzle/grenade/turret/status particles) — that is Milestone B's spawn-event work.
+- **Auto-wizard FIXED (root cause found).** The wizard wedged on the Hauptmissionen screen: pressing the
+  campaign card `UIChallengeSetButton_MissionRoad` did nothing, and the page never advanced (the mod then
+  pressed it every 2 s via a fallback, which made it look worse).
+  - Root cause: the mod cleared the publisher splash itself with `UISplashForm.AdvanceFlow()`. The splash's
+    flow includes `ShowSaveSlotSelectorIfNeeded` (selecting/loading the save), so skipping it left the
+    campaign half-initialized; `StartMainMissionsFlow()` then threw a NullReferenceException inside
+    `UIMissionSelectPage.Show(...)` and the page could not change. (The mod's own log named the exception
+    only after `Cause()` unwrapped `TargetInvocationException`.)
+  - Fix: **never advance the splash from the mod.** Clear it with a real mouse click instead. Then the API
+    driver works again untouched. Verified end-to-end: host `IN RUN after 20 steps`, client
+    `IN RUN after 19 steps`, both `peer connected`, `alive=True`, `check: char self=0` / `host=0 self=1`.
+  - Evidence that it is the splash, not the card: with a real click on the splash the campaign card
+    advanced normally and the wizard walked `UIMissionRoadButton_` → `MissionSectorButton_` →
+    `MissionNodeButton_` → `ClassSelectButton_` → `ClassArtifact` → `HazLevelButton` → IN RUN. A recorded
+    real-mouse replay (`tools\coop-wizard.ps1`) reached IN RUN the same way, while `AdvanceFlow` did not.
+  - The wizard's page flow is now logged by button signature (`auto: wizard page: …`) so the sequence is
+    visible in the log instead of guessed.
+  - `UIMutatorSetEntry` is display-only (`Show`/`Hide`, hover via `OnSelect`); it has no click action, so it
+    must never be pressed as a fallback.
+  - Level-up rewards are auto-served by the mod's `ServeLevelUp` (inside the auto driver's in-run branch);
+    enabling `-coopwatch` now also clears the splash, so rewards can be automated without the wizard driver.
+- **Downed / revive (F) — code done, revive not yet observed completing.** `CoopDowned` marks downed and a
+  `GameController.OnPlayerDeath` prefix blocks game-over; the survivor bot rescues (walks into a 3 m circle),
+  and the downed dwarf revives itself after 5 s. Two harness bugs found: relative-position rescue appeared
+  frozen (the game rewrites the position between ticks; now an absolute target is written), and a false
+  "remote downed" fired the moment one side started a run (now gated on having seen the remote's hp > 0).
+  In an earlier full test **both** went down before the 5 s elapsed, so nobody could revive; the rescuer's
+  hp is now pinned only while rescuing so it survives the rescue window.
+  - **VERIFIED end-to-end, fully automated** (`coop-run.ps1 -Auto -NoGod`):
+    `check: downed role=client (game-over blocked)` → host `check: downed remote role=host (remote hp=0)` →
+    `check: rescue started role=host dist=11,8` → `check: revive started role=client dist=2,8` →
+    `check: revived role=client hp=100 alive=True`, and the run kept going. No game-over screen appeared.
+- **Combat visuals (B) — stage B1 done: the fire event is synced.** New `PacketType.Fire = 14` carrying the
+  muzzle position (0.1-unit fixed point) and aim direction (1/10000), sent unreliable.
+  - Hook: a Harmony *prefix* on `ProjectileWeaponHandler.ShootProjectileInDirection(pData, direction, …)`.
+    It carries the firing handler, so `handler.owner` identifies the shooter; only the local player's own
+    weapon forwards (`ProjectileShootPatch`). Rate-limited to ~25 events/s.
+  - Verified (`coop-run.ps1 -Auto -NoGod`): host `shots 85 fireSent=85 fireRecv=115`,
+    client `shots 117 fireSent=117 fireRecv=91` - each side's shots reach the peer, both directions.
+  - **Rendering a visual is blocked by the build itself.** `GameObject.CreatePrimitive` returns objects
+    whose material is `Hidden/InternalErrorShader` (this build ships no Unity default resources), so no
+    procedural primitive can ever be visible. `Shader.Find("Sprites/Default")` / `Unlit/Color` / `Standard`
+    return shaders with no compiled variants (`Shader.Find` succeeds, the draw produces nothing - the
+    "applied but invisible" symptom), and a shader borrowed from a scene renderer was `FX/RT_Blobs`, a VFX
+    shader that also draws nothing for a plain mesh. See the tracer attempt in `CoopCombat`.
+  - Therefore the tracer is **off by default** (`-cooptrace` re-enables it) and B2 must reuse the game's
+    own assets: either clone an existing visual the way `CoopPuppet` clones the player subtree, or - better
+    - resolve the firing skill's real projectile/VFX prefab and spawn that. `Projectile.Shoot(WeaponHandler,
+    ProjectileSettings, Vector3 origin, Vector3 direction, List<StatusEffectData>, EDamageType, float)` and
+    `Projectile.SetInitialState(Vector3 origin, Vector3 direction, int pierce, ProjectileSettings, …)` are
+    the spawn points; `ProjectileSettings` is small and serialisable (LifeTime, Speed,
+    VFXThrottleFraction, OverrideDamageScalar, Ricochet, RicochetOnEnemy, SurvivesEnvironmentCollision).
+  - `-cooptracerdebug` (and `coop-run.ps1 -TracerDebug`) still exist for re-testing a drawing approach;
+    they print the chosen shader and the tracer's screen position.
+- **Combat visuals (B) — stage B2: real projectile resolution works, spawning needs the game's pool.**
+  The Fire packet now also carries the firing skill's asset **name**. This is the right key: both
+  instances run the same content, so the host's skill asset is the client's skill asset.
+  - Client indexes every `ProjectileWeaponSkillData` via `Resources.FindObjectsOfTypeAll` - **33 assets**
+    in a run, and every shot resolved (`noSkill=0 noPrefab=0`). Host logs confirm the shot really carries
+    the asset: `shot skill='ProjectileWeaponSkill_Subata' prefab=True`.
+  - `ProjectileWeaponSkillData.ProjectilePrefab` is a `Projectile` component reference, so the real
+    prefab is reachable: `Instantiate` produced `DamageProjectile_Kinetic_Medium(Clone)` with a live
+    `Projectile` component and `ProjectileSettings` non-null.
+  - **Blocker:** `Projectile.SetInitialState(...)` throws `Il2CppException` (masked NRE) on a bare
+    `Instantiate`. The pooled projectile the game hands out has been through
+    `Init(ObjectPool<Projectile>, LayerMaskLibrary)` first; a fresh clone has those fields null. Next step:
+    obtain the game's projectile pool + layer-mask library (or reuse an already-`Init`ed pooled instance)
+    before `SetInitialState`/`Shoot`.
+  - Second finding: `ProjectileSettings.Speed` read **1000** for `Bosco_ProjectileWeaponSkill_Base`, so it
+    is not a units/second muzzle velocity - the real velocity comes from the skill's `FireConfigs`
+    (`FirePointOffset`, `worldDirStartOffset`, `RotateDirPerShot`, `BurstShots`, `BurstFireRate`).
+  - Safety kept regardless: the mirror is spawned with `damageScalar` 0 and no status effects, so a client
+    can never damage a host-owned enemy and desync the swarm.
+  - All of this is behind `-cooptrace` (still off by default), so a normal run is unaffected.
+- **Combat visuals (B) — stage B3: the spawn plumbing is located, one piece still missing.**
+  A bare `Instantiate` cannot work, but the game has the right door: `Assets.Scripts.SkillSystem.
+  ProjectileProviderStandard(WeaponSkillData data, LayerMaskLibrary layerMaskLibrary, BulletTrailVFXSystem
+  bulletTrailVFXSystem)` builds a pool whose `Get()` hands out a projectile already through
+  `Projectile.Init(pool, layerMaskLibrary)`. `UpdateProjectilePrefab(Projectile)` re-points one provider at
+  any skill's prefab, so a single instance can serve every shot the peer fires.
+  - Plumbing is borrowed from the local player's own weapon handlers (the provider is a field on
+    `LinkProjectileWeaponHandler`; `LayerMaskLibrary` is a **property** on `WeaponHandler`, which is why a
+    fields-only scan found nothing - the cheap mistake that cost a run).
+  - Verified progress: `combat: masks=True trails=False` then
+    `combat: projectile provider built for 'Bosco_ProjectileWeaponSkill_Base'`. The provider constructs.
+  - The missing piece was `Player.BulletTrailVFXSystem` - a public property the player is injected with
+    (vfx, layer masks and most managers all arrive on `Player.Inject(...)`). Borrowing it from the player
+    instead of hunting for a projectile-carrying weapon closed the gap.
+  - **Verified (client, this run):** `combat: masks=True trails=True` ->
+    `combat: projectile provider built for 'ProjectileWeaponSkill_Subata'` ->
+    `combat: mirror projectile #1/#2/#3 skill='ProjectileWeaponSkill_Subata'
+    prefab=DamageProjectile_Kinetic_Medium go=DamageProjectile_Kinetic_Medium(Clone)`.
+    Counters `proj=109/0` - 109 spawned, 0 failed (was `proj=0/98`), with `live=0`, so the game also
+    reclaims them. The client now spawns real, pooled, damage-neutral game projectiles.
+  - A burst screenshot of the client during combat shows a fully rendered scene with projectiles, muzzle
+    flashes and impact VFX. One frame cannot attribute an individual projectile to the mirror stream, so
+    the *spawn* is proven and *visibility* is strong but not yet isolated.
+  - Render probe added (`-cooptrace` only): 0.4 s after spawn it reports the object's survival, distance
+    travelled, every renderer's enabled/isVisible state, its shader, its layer and the camera's mask.
+    Deferred on purpose - `Renderer.isVisible` is written during culling, so asking on the spawn frame
+    always answers false.
+  - **Probe result (client):** `active=True travelled=9,2 rends=1 drawn=0 layer=9 camHas=True on-screen
+    [r0 en=True vis=False URP/URP_Matcap_Unlit_Simple]`. So the mirrored projectile is alive, has moved
+    ~9 units, has exactly one renderer that is **enabled**, carries a **real game shader** (not
+    `Hidden/InternalErrorShader` as the procedural primitives did), sits on layer 9 which the main camera
+    **does** render, and is inside the viewport - yet Unity's culling still reports it undrawn.
+  - That combination (enabled, right layer, on-screen, real shader, still `vis=False`) points at bounds or
+    mesh setup that the game performs inside its own `Shoot(...)` path, which this bypasses by calling
+    `SetInitialState` directly. **Control experiment before chasing it:** run the same probe against the
+    host's own projectiles. If those also report `vis=False` at +0.4 s, the signal is simply unusable at
+    that sampling point and the mirror visual is fine - which is the cheaper thing to rule out first.
+  - Everything stays behind `-cooptrace`; a normal run is unaffected, and the Fire event itself (B1) is
+    verified and always on.
