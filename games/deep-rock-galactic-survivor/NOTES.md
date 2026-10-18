@@ -1354,3 +1354,55 @@ C objectives → D shop/upgrade → E loot value fix → F downed/revive → G U
     that sampling point and the mirror visual is fine - which is the cheaper thing to rule out first.
   - Everything stays behind `-cooptrace`; a normal run is unaffected, and the Fire event itself (B1) is
     verified and always on.
+
+- **Combat visuals (B) — stage B3 control experiment: the `isVisible` signal is unusable, not the visual.**
+  The open question was whether the mirror is really drawn, because the probe reported `vis=False` for an
+  object that was alive, moving, enabled, on the right layer and on screen. The fix was to stop measuring
+  the mirror against nothing: `-cooptraceab` puts **both kinds in one instance**. A Harmony prefix on
+  `Projectile.SetInitialState` (the single private method every projectile goes through) registers the
+  game's own projectiles as `kind=local`, `CoopCombat.InMirrorSpawn` marks the mod's own call so its
+  projectile registers as `kind=mirror`, and the *same* probe samples both at +0.1/0.25/0.4/0.8 s. The flag
+  also loops the local shot back into the mirror path, so real and mirror are spawned from the same muzzle
+  in the same frame.
+  - **Observation** (`coop-run.ps1 -Deploy -Auto -Test b3 -TracerAB -Only host`, archived log):
+    `check: B3 result=PASS verdict=SIGNAL_UNUSABLE local_vis=0/33(n=36 done=6) other_vis=0/0 mirror_vis=0/8(n=8 done=2)`
+    - All 33 alive observations of the game's **own** projectiles read `vis=False`, at every offset, with
+      `rends=1 en=True layer=9 camHas=True on-screen` and a real shader
+      (`URP/URP_Matcap_Unlit_Simple`) - byte-for-byte the same reading as the mirror's 8 observations.
+    - `combat: probe kind=local … travelled=2,4 / 5,2 / 8,0 / 16,0` is the same ~22 u/s curve as the
+      mirror's `3,1 / 6,6 / 9,7 / 18,0`, so both kinds did travel and were sampled mid-flight.
+    - Recycled projectiles are visibly different (`active=False`), so the probe does distinguish states.
+    - Hook counters prove the plumbing: `hookReal=11 hookMirror=3`.
+  - **Derived:** at these offsets `Renderer.isVisible` carries **no information** about whether a
+    game-drawn projectile is on screen in this build. The earlier `vis=False` on the mirror is therefore
+    **not evidence** that the mirror visual is broken, and B3's "chase the game's `Shoot(...)` path" branch
+    is closed. The instrument was the broken part, not the visual.
+  - **Unchanged by this run:** `Renderer.bounds.extents` came back `bounds=n/a` for every renderer, so the
+    bounds hypothesis was neither confirmed nor refuted - the property is not reachable the way the probe
+    asks for it (same reflection gap that hides `isVisible`).
+  - **Unknown (honest gap):** "the mirrored projectile is actually drawn" is still **not proven**. What is
+    proven is that no available reading contradicts it, and that the one reading which seemed to had no
+    signal. Best next oracle, cheapest first: (1) spawn one mirror projectile with **velocity 0**, park it
+    in front of the camera, take an in-game `ScreenCapture` before/after and count changed pixels in the
+    expected region - a stationary object removes the "one frame cannot attribute a projectile" objection;
+    (2) attach a tiny injected `MonoBehaviour` that counts `OnWillRenderObject()`, which only fires on a
+    real draw.
+  - **Side effect of the run that is worth keeping:** the automation reached the mission in **~54 s** from
+    plugin load (phases: menu at +19 s, wizard 7 steps at 2 s each, `run-started` at +35,6 s, first shot at
+    +48 s, verdict at +49 s). The old "3-4 minutes to mission start plus a fixed 80 s wait" was mostly the
+    guessed wait, not the boot.
+- **Test harness (repo-relevant technique, not just this game).** Three things made the run above possible
+  and are reusable for every later milestone:
+  - The mod ends its own test: `-cooptest=<name>` makes it decide when the question is answered, write
+    `RESULT: <name> PASS|FAIL reason=… role=…` into the per-role log and quit. The launcher polls that line
+    instead of sleeping a guessed number of seconds, and an unanswered test reports FAIL after a timeout
+    (`-cooptesttimeout`, default 420 s) rather than producing no line at all. Verdicts name their
+    inconclusive outcomes (`MIRROR_MISSED`, `NO_REAL_ALIVE`) instead of hiding them.
+  - Every step from plugin load to in-run logs `phase: <name> t=+Ns dt=Ms`, so boot cost is attributed
+    instead of guessed. (Caveat: markers logged before the first frame report a different time base -
+    `plugin-load t=+2,0s` precedes `first-tick t=+0,3s` - so only `dt` between frame-time markers is
+    trustworthy.)
+  - Deploy is verified: the DLL copy is checked by SHA-256 against the build output, because a stale binary
+    looks exactly like a fix that does nothing. Test runs archive their logs and screenshots under
+    `local/work/runs/<stamp>-<test>/`, back the save profile up first, and always stop the processes they
+    started.
