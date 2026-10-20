@@ -5969,14 +5969,18 @@
   open_source: unknown
   last_activity: unknown
   qa: none
-  notes: No co-op or multiplayer mod of any kind found, and the shipped assemblies contain no networking
-    code at all - a full search of the game's own code turned up no transport, socket or Steam networking
-    layer. Co-op therefore has to be built from scratch as a mod. An unpublished local prototype exists
-    and is written up in games/deep-rock-galactic-survivor/ (same cave on two instances, dwarves visible to
-    each other, shared XP, level-up pause that waits for both players). It has no release, so the directory
-    keeps this as a gap.
+  notes: No published co-op or multiplayer mod, and the shipped assemblies contain no networking code at
+    all - a full search of the game's own code turned up no transport, socket or Steam networking layer.
+    Co-op therefore has to be built from scratch as a mod. An unpublished local prototype (two instances on
+    one PC, host-authoritative) now covers the run loop - same cave, both dwarves visible and animated, an
+    in-game lobby where the host sets mission/sector/node/hazard live and the client only picks class +
+    class mod, a ready gate and wizard start, a loading screen that waits for the partner, host-owned
+    enemies, shared loot/terrain/XP/objectives, per-player shops and upgrades, stage ends that reach the
+    partner, downed/revive, mirrored turret/beam/Bosco visuals, and a client playing on the host's unlocks
+    with its earnings kept - with an automated two-client harness behind every claim; written up in
+    games/deep-rock-galactic-survivor/. It has no release, so the directory keeps this as a gap.
   sources: []
-  checked: '2026-10-17'
+  checked: '2026-10-20'
   searched:
   - 'Full search of the shipped game assemblies for networking APIs (none found)'
   - 'WebSearch: co-op / multiplayer mod for Deep Rock Galactic Survivor across github.com, nexusmods.com,
