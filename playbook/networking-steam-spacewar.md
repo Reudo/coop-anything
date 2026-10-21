@@ -48,8 +48,33 @@ game-server one.
 (AppID 480), not your mod. Tell the friend to start the mod first, then accept
 the invite or click Join Game.
 
-For a 64-bit game, use `steam_api64.dll` from the same release. Check the
-architecture before using it: a 32-bit exe needs the PE32 i386 DLL.
+**Check the game's own copy first.** A recent Steam game may already ship a
+`steam_api64.dll` with the flat API: The Witcher 3 Remastered's (`bin\x64_dx12`, version
+10.87.46.89) exports every function and interface version listed below. The relay can load
+it from the player's own install, so there is nothing to download or redistribute.
+
+For a 64-bit game, use `Windows-x64/steam_api64.dll` from the same release:
+
+- SHA-256 `eb17909a76668cf9ae0b92a618a34a50f6c73d3a6787cb4dd8ce36a8b10bfb75`
+
+Check the architecture before using either: a 32-bit exe needs the PE32 i386 DLL, a
+64-bit exe needs the x64 one. Several struct offsets differ between them (below).
+
+### The game's copy may not have it; and what to do with no compiler
+
+The check has to actually run, because the answer is often no: the `steam_api64.dll`
+shipped inside Poppy Playtime (Steamworks 1.51, in the install's `Engine\...\Steamv151\Win64`
+and `PlaytimeLauncher` folders) has **no `SteamAPI_InitFlat`**, so a plan that assumed the
+game's own copy would fail late. A few lines of Python settle it — `ctypes.WinDLL(path)` then
+`getattr(dll, name)` for each symbol — with no toolchain needed.
+
+That same trick is the fallback when the machine has no C/C++ compiler at all. The flat C
+API exists so a language without Steamworks headers can call it: `ctypes` can drive init, the
+`SteamAPI_ISteam*` getters, `ManualDispatch_*`, lobbies and `NetworkingMessages` directly,
+using the struct offsets on this page. One program with a `--transport udp|steam` switch then
+gives both a scriptable test stand-in (UDP over localhost, no second account, two clients on
+one PC) and the real Steam path from the same code. Evidence: Poppy Playtime,
+[games/poppy-playtime/NOTES.md](../games/poppy-playtime/NOTES.md) (Phase 6).
 
 ## Design: no SDK headers, dynamic loading only
 
@@ -136,6 +161,10 @@ GameRichPresenceJoinRequested_t { uint64 friend; char connect[256]; }
 - **SteamNetworkingMessage_t** (32-bit, MSVC build of the DLL): `data` at offset 0,
   `size` at 4, and the sender identity at **16**. KeeperFX falls back to 12 if the
   identity at 16 doesn't decode. Always call `SteamNetworkingMessage_t_Release`.
+- **SteamNetworkingMessage_t on 64-bit** (`steam_api64.dll`): `data` at 0 (an
+  8-byte pointer), `size` at **8**, sender identity at 16. Reading `size` at 4 on
+  x64 gives garbage. `FriendGameInfo_t` and the callback structs above keep the
+  same layout on x64.
 
 ### Messaging rules learned the hard way
 
@@ -147,6 +176,14 @@ GameRichPresenceJoinRequested_t { uint64 friend; char connect[256]; }
   - a control channel (channel 1) carries goodbye, kick-with-reason and a 1 s keep-alive;
   - a peer silent for 20 s is dropped;
   - LobbyChatUpdate left/disconnected flags and SessionFailed also drop the peer.
+- **Answer keep-alives before game data starts.** A friend's relay usually joins the lobby
+  while their game is still loading, so for a minute only keep-alives flow. If the host
+  only tracks peers that sent game data, the joiner sees silence and gives up. Track every
+  lobby member that talks on the control channel, and have the joiner rejoin instead of
+  exiting when the host goes quiet (The Witcher 3 relay, found by the two-client test).
+- **LobbyCreated arrives twice on real Steam:** once as the `CreateLobby` call result
+  (703) and once as a broadcast callback (513). Handle it idempotently; a mock that sends
+  it once won't show this (The Witcher 3 relay's real-Steam smoke test).
 - **Channels:** game data is reliable and ordered on channel 0. Unsequenced or
   unreliable data is sent with `Unreliable` on the same channel. All sends add
   `NoNagle`. Send flags are Unreliable 0, NoNagle 1, Reliable 8.
@@ -184,6 +221,50 @@ Swap it in for the real `steam_api.dll` in the two test installs and run the
 normal two-instance tests. **Copy the mock and extend it with whatever extra
 exports your game uses** (HXCoop added the friend-list calls it uses to find a
 hosting friend).
+
+### Unity Mono games: mock Steamworks.NET, not the DLL
+
+When the game or the mod talks to Steam through Steamworks.NET (the managed C#
+wrapper), you don't need a native mock. A test-only BepInEx plugin can patch the
+wrapper with Harmony and leave `steam_api64.dll` alone. Graveyard Keeper's
+co-op mod (Back From The Grave) was tested this way: about 1,100 lines of C# for
+the mock and 300 for its transport.
+
+- **Find the calls:** grep the mod for `Steam(User|Friends|Matchmaking|Networking|Utils)\.`
+  and give each one a Harmony prefix that returns fake data and skips the
+  original. Fail loudly if a method isn't found.
+- **Callbacks:** a `Callback<T>` registers with Steam's native dispatcher. Prefix
+  `Callback<T>.Register` and `Unregister` for each callback type the mod uses,
+  keep the instance and its delegate (field `m_Func`) in your own table, and invoke
+  it yourself from the plugin's `Update` on the main thread. For `CallResult<T>.Set`,
+  take over only the call handles your mock issued (start them at a high fixed
+  value) and pass real handles on to Steam.
+- **Load order:** the patches must be in place before the mod registers its
+  callbacks, so the plugin must load first. A GUID that sorts first (`aaa.coopqa`)
+  was enough there. Make it do nothing unless a command-line flag (`-coopqa`) is set.
+- **Keep real Steam for the rest:** the Steam client stays signed in, and the game
+  still checks DLC and achievements against it. Only the calls the mod uses for
+  multiplayer are faked.
+- **Ids and transport:** fake individual SteamIDs from a reserved account range
+  (900000000 + player number) and lobby ids as chat-type ids. Lobby data and P2P
+  packets go between the copies over localhost TCP, one port per player.
+- **Copy the Steam rules the mod relies on:** unreliable sends over 1200 bytes and
+  any send over 1 MB fail; the first packet from a stranger raises
+  `P2PSessionRequest_t` and is held until `AcceptP2PSessionWithUser`; create fires
+  `LobbyCreated_t` then `LobbyEnter_t`; a join fires `LobbyDataUpdate_t` then
+  `LobbyEnter_t` on the joiner and `LobbyChatUpdate_t` on the members; every data
+  change fires `LobbyDataUpdate_t` on every member; when the owner leaves, the
+  next member becomes the owner. Add switches for extra latency and unreliable
+  packet loss.
+- **A setup error must fail the run.** `AccessTools.Method` without parameter
+  types throws on an overloaded method. The plugin then stopped without starting
+  the bot, and the test only timed out. Print `RESULT: FAIL` for setup errors, and
+  have the launcher fail a copy that writes no status file.
+- **A mock picks one order of events.** Ours always delivered lobby data before the
+  first P2P packet. That made a race in the mod fail on every join: the joiner's
+  late compatibility hello locked the mod's transport to the wrong channel. The
+  other order would have hidden it. Where real Steam doesn't promise an order, add
+  a switch for each order (we haven't added one yet).
 
 ## Reusing it for Deus Ex (Unreal Engine 1) co-op
 
@@ -231,10 +312,53 @@ playing the real Spacewar.
   everything to the host's SteamID.
 - Send game packets unreliable with NoNagle (the engine has its own reliability).
   Keep-alive and goodbye on channel 1 as reliable messages.
+- **Only lobby members get through.** Before forwarding a new peer's traffic into the
+  local server, check that their SteamID is in your lobby
+  (`GetNumLobbyMembers` / `GetLobbyMemberByIndex`) and drop anyone else. Add
+  those two exports to the mock too.
 - Exit when the game process exits, and leave the lobby and clear rich presence.
 - The engine's own packet lag and loss emulation (Unreal Engine 1 has `PktLag=`,
   `PktLoss=`, `PktOrder=`, `PktDup=` console commands) is a cheap stand-in for
   relay latency in automated tests.
+
+## TCP games: a stream relay
+
+The pattern above is for UDP games. When the game talks TCP (many source ports
+and emulator netplay do), relay streams instead of packets:
+
+- Give each TCP connection a **stream id**, and send small frames over Steam:
+  `open(id)`, `data(id, bytes)`, `close(id)`.
+- Send them **reliable and ordered** (TCP expects that), split into chunks of
+  about 16000 bytes.
+- When a reliable send fails because the send buffer is full, wait a few ms and
+  retry; never drop stream data.
+- Propagate close both ways: a local socket closing sends `close(id)`, and a
+  `close(id)` from the peer shuts the local socket. Otherwise one side hangs on a
+  half-open connection.
+- The host opens one local TCP connection to the game's server per remote stream
+  id, the same way the UDP relay opens one socket per player.
+
+## Writing the helper exe: gotchas
+
+- If another tool starts the helper with redirected output, call
+  `setvbuf(stdout, NULL, _IONBF, 0)` or its log arrives late or never.
+- Check that stdin is a console before using `_kbhit` / `_getch` for a menu; with
+  redirected stdin they misbehave.
+- When the helper starts a local game server as a child process, start it with
+  `CREATE_NEW_PROCESS_GROUP` and stop it with Ctrl+Break
+  (`GenerateConsoleCtrlEvent`) so it shuts down cleanly, and put it in a job object
+  with kill-on-close so it never outlives the helper.
+- Export macros: `__declspec(dllexport)` and `__cdecl` in the order mingw accepts
+  can fail under MSVC. Test the mock DLL with both compilers if you support both.
+
+## Packaging and status
+
+- Ship `steam_api.dll` (or `steam_api64.dll`) next to the helper exe, and have the
+  helper write `steam_appid.txt` (`480`) itself, so a missing file can't break it.
+- Make the status line honest and specific: say whether real game traffic has
+  passed through the relay yet (not just "connected to Steam"), and when someone
+  joins a lobby id that isn't one of yours (the lobby data key is missing), say so
+  plainly ("that lobby is not a <game> co-op game").
 
 ## Status / unknowns
 

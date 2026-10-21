@@ -23,7 +23,7 @@ Answer these in order and write the answers into `games/<slug>/NOTES.md`.
    making the single-player logic (story scripts, AI, triggers, saves) run on that
    netcode. No netcode at all means building a sync layer: lockstep for deterministic
    games, host authority with state sync for the rest.
-6. **Legal check.** Will players need to own the game? (They should.) Can you ship your
+6. **Shipping check.** Can you ship your
    changes without shipping the game's files? Is there anti-cheat or an online service
    you must stay away from?
 

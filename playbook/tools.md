@@ -11,7 +11,7 @@ How to read this page:
 
 ## Legal and safety note
 
-Use these tools only on software you own or are authorized to examine. Do not use them to bypass DRM or anti-cheat on online games, to cheat in other people's sessions, or to redistribute game assets or code you do not have rights to. Many tools below have a stated "your own software" scope (REA and RenderDoc say so explicitly). Co-op mods should be tested on private sessions with friends who own the game. Multi-instance helpers (Goldberg, Nucleus) are for testing your own copies on your own network, not for playing unowned games.
+Do not use these tools to bypass anti-cheat on online games, to cheat in other people's sessions, or to redistribute game assets or code you do not have rights to. Many tools below have a stated "your own software" scope (REA and RenderDoc say so explicitly). Test co-op mods in private sessions with friends.
 
 ## 1. Reverse engineering for agents
 
@@ -46,7 +46,7 @@ Use these tools only on software you own or are authorized to examine. Do not us
 
 | Tool | What it does | Link | Install | Agent interface | License | Pitfalls |
 |---|---|---|---|---|---|---|
-| Detect It Easy (DiE) | Identify compiler, packer, protector, engine, so you pick the right toolchain (for example Unity vs Unreal vs custom). | horsicq/Detect-It-Easy on GitHub (unverified; from memory) | Unverified | GUI and a console version exist (unverified) | Free (unverified) | A packer hit means you need a legitimate unpacked build, not a bypass. |
+| Detect It Easy (DiE) | Identify compiler, packer, protector, engine, so you pick the right toolchain (for example Unity vs Unreal vs custom). | horsicq/Detect-It-Easy on GitHub (unverified; from memory) | Unverified | GUI and a console version exist (unverified) | Free (unverified) | A packer hit means you need an unpacked build of the game. |
 | PE-bear | Inspect PE headers, imports, sections. | hasherezade/pe-bear on GitHub (unverified; from memory) | Unverified | GUI | Free (unverified) | Fine for quick checks, an agent will usually prefer Python `pefile` (unverified, widely used). |
 
 ### 1.4 Managed-code and Unity decompilation
@@ -71,6 +71,7 @@ Use these tools only on software you own or are authorized to examine. Do not us
 | Tool | What it does | Link | Install | Agent interface | License | Pitfalls |
 |---|---|---|---|---|---|---|
 | decomp.dev | Progress hub for matching-decompilation projects (80+ per a search summary), fed by objdiff reports. Use it to find whether a game already has a decomp you can fork. | https://decomp.dev (unverified direct fetch; described by search results) | n/a | Web | n/a | Matching decomps exist for few games, and publishing one is legally sensitive. Do not redistribute original assets. |
+| DecompPipeline | Agent-driven function decompilation: Ghidra prep, cheap model workers, an emulator-based behaviour oracle as the judge, a readable stage and a native port build. | https://github.com/GeneralAtrox/DecompPipeline | `python decomp.py --project <workspace> setup`, then `serve` for the web UI; needs Ghidra and Java | CLI plus web UI; drives `claude -p` workers | MIT | Only a Dreamcast SH-4 target today; other CPUs need a new target written. |
 | objdiff | Diff compiled object files against the target during decomp work. | https://github.com/encounter/objdiff | Unverified | Local tool plus VS Code extension | MIT or Apache-2.0 per search summary | |
 | decomp-toolkit (dtk) | GameCube and Wii decomp toolkit, single binary. | https://github.com/encounter/decomp-toolkit (unverified; search result showed a fork) | Unverified | CLI | Unverified | splat README sends GameCube and Wii work here. |
 | splat | Split a ROM or binary into assembly and asset files for N64, PSX, PS2, PSP. | https://github.com/ethteck/splat | `python3 -m pip install -U splat64[mips]` (seen in docs) | CLI, Python | MIT | Platform list is limited (no GameCube/Wii). |
@@ -92,6 +93,7 @@ Use these tools only on software you own or are authorized to examine. Do not us
 | Harmony | Runtime patching of .NET/Mono methods | https://github.com/pardeike/Harmony | NuGet `Lib.Harmony` (or `Lib.Harmony.Thin`) (seen in docs) | C# | MIT | Harmony 1.x and 2.x are incompatible. |
 | UE4SS | See section 1.5 | | | | | |
 | REFramework | Capcom RE Engine games (RE2/3/4/7/8, DMC5, SF6, MH Rise, Dragon's Dogma 2 and more) | https://github.com/praydog/REFramework | Non-VR: extract only `dinput8.dll` into the game folder. Proton: launch option `WINEDLLOVERRIDES="dinput8.dll=n,b" %command%` (seen in docs) | Lua scripting; docs at refdocs.praydog.com | MIT | Works on DX11 and DX12. Steam Deck/Linux needs the DLL override. |
+| Gibbed.Dunia | Far Cry 2 (Dunia engine) archives: unpack `Data_Win32\*.fat/.dat`, convert FCB binary objects to XML | https://github.com/gibbed/Gibbed.Dunia | Build with the .NET SDK; copy its `configs` folder next to the tool (seen in the build) | C# command-line tools | zlib | Far Cry 2 archives are FAT2 version 5: two small local patches were needed (v5 compression mapping 0 = none, 1 = LZO1x; honor the output size), see games/far-cry-2. |
 | Reloaded-II | Any native x86/x64 Windows game | https://github.com/Reloaded-Project/Reloaded-II | See the project's Quick Start Guide (not on the fetched page) | C# (.NET) mods | GPL-3.0 | Compatibility list not given on the repo page. |
 | Ultimate ASI Loader | Generic proxy DLL that loads `.asi` plugins | https://github.com/ThirteenAG/Ultimate-ASI-Loader | Place as `dinput8.dll` (or another supported proxy name) in the game folder, put `.asi` files in the game root or `scripts`/`plugins` (seen in docs) | Native C++ DLLs renamed `.asi` | MIT | Do real work in `InitializeASI`, not `DllMain` (loader lock). ASI files inside zips are not loaded. |
 | Source SDK 2013 | Source engine mods (HL2, HL2DM, TF2 code) | https://github.com/ValveSoftware/source-sdk-2013 | Clone and follow the README build steps | C++ | Source 1 SDK license, non-commercial per a search summary | Mods cannot be sold. Verify the license text for your use. |
@@ -123,6 +125,15 @@ Linux and Steam Deck notes:
 - REFramework needs `WINEDLLOVERRIDES="dinput8.dll=n,b" %command%` in Steam launch options. MelonLoader lists Linux support via Wine, Proton or native. BepInEx supports Unity Mono on Linux.
 - UE4SS is Windows only per its README, but Windows UE games run under Proton, with the proxy DLL override applied the same way.
 - Goldberg lists Linux support (`libsteam_api.so`).
+
+### 3.1 This repo's own tools for several copies and sync tests
+
+`tools/gameslot` (a lease lock so only one test lane runs game copies at a time) and
+`tools/gamepool` (isolated hardlinked installs, a warm pool of reused copies, low-cost
+minimized launches, crash log reading) do the bookkeeping above for any Windows game from a
+per-game config. The rest of the sync test tools (chaos box, flight recorder, fuzzer,
+ownership library, fake world, scenarios, bots, animation checker) are listed in
+[tools/README.md](../tools/README.md). How to run copies: [multi-instance-testing.md](multi-instance-testing.md).
 
 ## 4. Agent workflow helpers
 

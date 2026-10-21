@@ -117,7 +117,7 @@ For games with local co-op where netplay is unavailable (PS2 on PCSX2 is the mai
 | PSP | PPSSPP | Ad hoc and infrastructure with relay servers ([docs](https://www.ppsspp.org/docs/multiplayer/how-to-play)); RetroArch PSP netplay not possible ([FAQ](https://docs.libretro.com/guides/netplay-faq/)) | PPSSPP has a debugger and memory view (not verified here), so the section 2b pattern is plausible. **UNVERIFIED** | Kingdom Hearts: Birth by Sleep has built-in co-op on PSP ([RPG Site](https://www.rpgsite.net/news/430-kingdom-hearts-gets-co-op-play-on-psp)) |
 | GBA, DS, 3DS | mGBA, melonDS, Azahar, BizHawk | mGBA has local multi-window link; RetroArch lists GBA netplay as not possible ([FAQ](https://docs.libretro.com/guides/netplay-faq/)); melonDS Wi-Fi in progress in standalone ([libretro docs](https://docs.libretro.com/library/melonds_ds/)); Azahar rooms ([post](https://citra.azahar-emu.org/entry/announcing-networking-support/)) | mGBA Lua with sockets ([docs](https://mgba.io/docs/scripting.html)); BizHawk Lua | PK-GBA Multiplayer for Gen 3 Pokemon, alpha, possibly stalled ([PokeCommunity](https://www.pokecommunity.com/threads/pk-gba-multiplayer.484949/), **UNVERIFIED** status) |
 | Xbox, Xbox 360 | Xemu, Xenia (canary) | System-link via XLink Kai, experimental ([Xenia](https://www.teamxlink.co.uk/wiki/Xenia_XLink_Kai_Setup), [Xemu](https://www.teamxlink.co.uk/wiki/Xemu_and_XLink_Kai_Setup)) | No verified RAM bridge | None found |
-| Switch | Eden, Ryubing (Ryujinx fork), Citron, others | LDN local wireless existed in Ryujinx and its fork ([tech-insider](https://tech-insider.org/eden-vs-ryubing-best-switch-emulator-2026/), **UNVERIFIED**); current state in Eden/Citron not confirmed | None verified | Do not plan work here without checking legal status first. Original Yuzu and Ryujinx were shut down after Nintendo action, and 2026 reports of DMCA notices against forks are **UNVERIFIED** ([tech-insider](https://tech-insider.org/?p=19175)). Use only open emulators the user already has, with their own dumps. |
+| Switch | Eden, Ryubing (Ryujinx fork), Citron, others | LDN local wireless existed in Ryujinx and its fork ([tech-insider](https://tech-insider.org/eden-vs-ryubing-best-switch-emulator-2026/), **UNVERIFIED**); current state in Eden/Citron not confirmed | None verified | Do not plan work here without checking legal status first. Original Yuzu and Ryujinx were shut down after Nintendo action, and 2026 reports of DMCA notices against forks are **UNVERIFIED** ([tech-insider](https://tech-insider.org/?p=19175)). Use only open emulators the user already has. |
 
 ## 4. Existing emulator-based co-op projects for single-player games
 
@@ -243,10 +243,10 @@ Short decision notes; details in the sources above.
 
 ## 7. Legal and attribution
 
-- Own the game. Dump your own disc, cartridge and console firmware. Do not link or request ROMs, ISOs, keys or BIOS.
-- Patches distributed by a mod must be patch-only (IPS/xdelta/pnach deltas) and apply to the user's own dump. Do not ship copyrighted data.
+- Do not host or link ROMs, ISOs, keys or BIOS in this repo.
+- Patches distributed by a mod must be patch-only (IPS/xdelta/pnach deltas) and apply to the user's dump. Do not ship copyrighted data.
 - Server revivals are third-party infrastructure: say so in the README, and offer a self-host option (Anchor does both public and self-hosted, [README](https://github.com/garrettjoecox/anchor)).
-- Switch emulation is legally sensitive: the original Yuzu and Ryujinx were shut down in 2024 and multiple successors are under legal pressure per secondary reports ([tech-insider](https://tech-insider.org/?p=19175)). Keep any Switch work to the user's own dumps and existing open emulators, and do not contribute circumvention code.
+- Switch emulation is legally sensitive: the original Yuzu and Ryujinx were shut down in 2024 and multiple successors are under legal pressure per secondary reports ([tech-insider](https://tech-insider.org/?p=19175)). Keep Switch work to existing open emulators, and do not contribute circumvention code.
 - Credit and license: respect GPL licenses (ModLoader64 Z64Online is GPL-3.0 per its repo page), and check that any fork you build on has a license file (Anchor's repo page did not show one).
 
 ## 8. Open questions and unverified items
@@ -264,3 +264,5 @@ Re-check these before telling a user they work.
 9. All Switch emulator network features.
 10. Project64 netplay in current builds.
 11. Mainline Dolphin scripting (reported stalled; fork only).
+
+Nintendo Switch has its own page: [switch.md](switch.md) (local wireless, hooking on your own console, decompilations).

@@ -15,7 +15,8 @@ rules; this page is the short version.
 
 Please don't:
 
-- add game files, decompiled source of closed games, or download links to pirated copies;
+- add game files or assets (art, audio, ROMs, game data) or download links to them;
+- commit a whole game's code here: decomp-based work is welcome, but it lives in the game's own repo, linked from here;
 - paste personal info (names, emails, usernames in paths, tokens, private chat logs);
 - claim a QA level you didn't reach. `unknown` and `untested` are fine answers.
 

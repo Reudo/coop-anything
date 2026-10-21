@@ -15,5 +15,5 @@ Sources for every claim (links), and for game write-ups the QA level reached:
 
 - [ ] `python tools/build_directory.py` was run and DIRECTORY.md is regenerated
 - [ ] No personal info (real names, emails, local paths with usernames, tokens, invite links to private servers)
-- [ ] Nothing copyrighted from the game itself (no game files, no decompiled source of closed games)
+- [ ] No game files or assets (art, audio, ROMs, game data); a game's full code lives in its own repo, linked
 - [ ] If an agent wrote this: the owner reviewed it before submitting
