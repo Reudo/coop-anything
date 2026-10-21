@@ -44,7 +44,7 @@ Goal: online co-op (2 players) for a game that ships single-player only.
 | BACK / off-screen marker | ✅ | `20261020-172235-lobby-back`, `20261020-172040-indicator` (− `172202`) |
 | Release packaging / soak | ✅ | `20261020-145500-packageverify`, `20261020-040552-soak` |
 
-The full matrix, the Soll (owner requirements), the gap table and the definition of
+The full matrix, the Soll (design requirements), the gap table and the definition of
 "verified" are in [STATUS.md](STATUS.md).
 
 ## Known open items
@@ -52,7 +52,7 @@ The full matrix, the Soll (owner requirements), the gap table and the definition
 - **Lobby visual:** root cause of the unrendered cloned Images (material / CanvasRenderer
   alpha / canvas registration); a fresh connect-screen capture; layout at 900×600.
 - **Projectile draw oracle:** spawn is proven, "is it drawn" is not; out-of-process diff.
-- **Steam invite/relay** (Spacewar), **aggro** (owner-deferred), **I1 gear half**,
+- **Steam invite/relay** (Spacewar), **aggro** (deferred), **I1 gear half**,
   **Mastery fixture**, **client milestones**, **two-PC smoke test**.
 - **Marker:** `stale` and `downed` branches are code-only (no forced-silence/downed test).
 
@@ -92,7 +92,7 @@ coop-run.ps1 -Auto -Test loadform
 coop-run.ps1 -Auto -Test loadtimeout -Only host
 ```
 
-Rules: never launch the game without the owner's OK; back up the save profile; use
+Rules: never launch the game without explicit approval; back up the save profile; use
 1280×720+ for UI; one test = both roles + a run ID + a negative control where available.
 
 ## Notes discipline

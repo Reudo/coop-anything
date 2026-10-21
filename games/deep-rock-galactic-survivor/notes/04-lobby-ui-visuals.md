@@ -118,7 +118,7 @@ change only; normal play still uses the real Play button.
 
 ## Co-op lobby — L0 measurement (2026-10-20)
 
-Owner goals recorded for milestone G: a real in-game lobby (own screen), the host sets mission and
+Design goals recorded for milestone G: a real in-game lobby (own screen), the host sets mission and
 difficulty there and the client sees the changes live, the client picks only **class + class mod**,
 and the host may start only after the client is ready. Keeping the loading screen up with
 "Fertig geladen - warte auf Spieler 2" is explicitly lower priority than the lobby.
@@ -176,7 +176,7 @@ Derived (design consequences):
 - The lobby screen **covers** `UIPlaySelectForm`; it does not hide it.
 - Hazard levels are read after the node selection; at Play time only mission/sector/node data is
   guaranteed.
-- The owner's "client picks class + class mod" is exactly what the game exposes; mission, sector,
+- The "client picks class + class mod" is exactly what the game exposes; mission, sector,
   node, biome, hazard and mutators are host-side, and skin/starting weapon follow the class mod.
 
 Unknowns (honest):
@@ -327,7 +327,7 @@ saves: restored and verified (14 files, canary removed)
 
 ### P2 — loading-screen hold (2026-10-20)
 
-The owner's load-screen point is implemented. `CoopLoad` caches the active `UILoadingForm` while
+The load-screen requirement is implemented. `CoopLoad` caches the active `UILoadingForm` while
 the run is armed, pauses at `StartGame`, re-shows the same form over the paused game, sets
 `tipText = "Fertig geladen - warte auf Spieler 2"`, clears the press-any-key prompt, and hides the
 form only when the barrier releases. `-cooploadformoff` / `-LoadFormOff` is the negative control.
@@ -381,7 +381,7 @@ host's companion.
 
 ## Co-op UI pass — BACK fixed, marker rebuilt (VERIFIED, 2026-10-20)
 
-Owner decisions for this pass (asked): scope is LAN/direct IP plus the in-run marker; **no partner
+Design decisions for this pass: scope is LAN/direct IP plus the in-run marker; **no partner
 panel**; visual proof via external window captures. The full plan is
 `~/.commandcode/plans/coop-ui-plan.md` (private).
 

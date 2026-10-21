@@ -699,7 +699,7 @@ the player sync above (measure on two instances, log both sides, do not claim wi
 
 ## Milestone: shared XP and a synchronised level-up pause
 
-Also verified live (build 23854500, 2026-10-17), and confirmed by the owner in game:
+Also verified live (build 23854500, 2026-10-17), and confirmed in game:
 
 - **XP is shared, not per-player.** `Player.GainXp(float amount, bool scaleByXpGain = true)` is the
   single XP entry point; mirroring each gain to the peer and applying the peer's gains with

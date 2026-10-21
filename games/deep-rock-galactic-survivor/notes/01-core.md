@@ -210,7 +210,7 @@ Goal: online co-op (2+ players) for a game that ships single-player only.
 
 - **The game profile/save folder is per-user, not per-install:**
   `%USERPROFILE%\AppData\LocalLow\Funday Games\DRG Survivor\` (Steam-Cloud synced).
-  Two instances, and any test copy, all read and write the *owner's* saves
+  Two instances, and any test copy, all read and write the player's saves
   (`drg_save_slotN_*.dat`, `drg_current_run_slotN.dat`, `localprefs.dat`). Rule: back the
   folder up before testing and restore after; a proper fix (per-instance redirection) is
   still needed before real co-op play. Backup taken at
@@ -240,7 +240,7 @@ Requirements set by the project author (not derived from the game).
     they are outside the local camera view.
   - A **revive mechanic**: the surviving dwarf stands within a circle around the dead dwarf for
     roughly **5 seconds** to revive them.
-- **Meta progression uses the HOST profile for both dwarves** (owner decision, supersedes the earlier
+- **Meta progression uses the HOST profile for both dwarves** (design decision, supersedes the earlier
   "shared real profile"). Unlocks come from the host only: if the host has the Driller, the partner may
   play it, otherwise not. Progress is credited to the host's profile for **both** characters, so a host
   on Scout with a partner on Driller advances both the Scout and the Driller in the host's save. The
@@ -251,7 +251,7 @@ Requirements set by the project author (not derived from the game).
   pod, each player picks their own artifact. **Damage model:** client weapons run locally, the client
   reports hits and the host applies them (cheat exposure accepted for 2 friends).
 - **The host picks the mission**, and the client must **drop into the same mission**, with the same
-  drill and same level state. This is the "settings adoption" problem, and the owner wants it fully
+  drill and same level state. This is the "settings adoption" problem, and it should be fully
   automatic rather than matched by hand.
 - **Scope for now: main missions only** (Elimination, Escort Duty). Other run types do not have to work
   yet, and **Egg Hunt is explicitly out of scope** (it needs the Heavy Duty DLC).

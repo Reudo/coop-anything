@@ -1,15 +1,15 @@
 # Sync contract — what must be shared for smooth co-op
 
-Draft 2026-10-21, for the owner to confirm. This is the **Soll** for synchronisation; the
+Draft 2026-10-21, to be confirmed. This is the **Soll** for synchronisation; the
 current Ist is in [../STATUS.md](../STATUS.md), the measured differences in
 [05-sync-gaps.md](05-sync-gaps.md). Nothing here is a claim that it works.
 
-Rule of thumb: **host decides, client shows.** Each item has an owner (who may change it),
+Rule of thumb: **host decides, client shows.** Each item has an authority (who may change it),
 a quality bar (what the player must not notice) and how a test could prove it.
 
 ## A. Must be identical on both sides (determinism)
 
-| # | Item | Owner | Bar | Proof |
+| # | Item | Authority | Bar | Proof |
 |---|---|---|---|---|
 | A1 | Run config: mission, sector, node, biome, hazard, **seed** | host | client never builds a map before the config arrived | fingerprint of the cave equal; test with the host start delayed (seed-race twin) |
 | A2 | Map layout, veins, ore, mission objects (Bobby, detonators, TNT zone, fuel) | seed | same positions | `worlddiff` census, 0 differences outside the ignore list |
@@ -55,7 +55,7 @@ Off-screen marker, partner name/health panel (out of scope per S14), vanilla cam
 framing, decision 5), no visible wizard clicking when a run is
 started from the lobby, notices.
 
-## Decisions (owner, 2026-10-21)
+## Decisions (2026-10-21)
 
 1. **Enemy motion (B1):** snapshots from 2 Hz to **10 Hz**, then measure.
 2. **Host unlocks (A4):** the host's unlocks apply to both, **on by default** (today only with
@@ -72,4 +72,4 @@ started from the lobby, notices.
 ## Open: not yet decided
 
 Mission types beyond Elimination/Escort (S9 says main missions only), Steam relay (S10),
-aggro per player (deferred by the owner).
+aggro per player (deferred).

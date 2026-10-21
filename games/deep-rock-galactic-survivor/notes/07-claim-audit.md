@@ -52,7 +52,7 @@
 1. **Lag/loss shaper** between the two instances, so D6, B1 and the seed race can be run. Options
    on Windows: a small UDP proxy of our own on 127.0.0.1 (delay, jitter, loss, duplicate,
    blackout) inside the mod's test mode or as a tool script. Preferred: own proxy (no driver
-   install, no admin rights, reproducible); a driver such as Clumsy would need owner approval.
+   install, no admin rights, reproducible); a driver such as Clumsy would need explicit approval.
 2. **Late-start twin:** `-LoadDelayRole host` exists for loading; extend it to delay the host's
    run-config send, so the A1 race is reproduced with a failing baseline.
 3. **Shipped-config mode:** run the harness with the release defaults and no test-only flags,
@@ -61,9 +61,9 @@
    again, compare fingerprints.
 5. **State-machine asserts:** downed → input and position frozen; revive completes within N s;
    hold-time asserted in `levelup`/`shop`.
-6. **Position-error probe:** compare puppet/mirror positions to the owner's real positions at
+6. **Position-error probe:** compare puppet/mirror positions to the real positions at
    fixed times (needs both logs on a common game clock; census already aligns by game time).
-7. **Human-confirmed column:** a checklist the owner runs on two PCs, one line per contract row,
+7. **Human-confirmed column:** a checklist a tester runs on two PCs, one line per contract row,
    so STATUS can show "automated" and "human" separately.
 
 ## Result

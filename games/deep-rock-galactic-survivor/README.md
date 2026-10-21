@@ -8,7 +8,7 @@
 | QA level | automated on one PC only; not human-confirmed (first two-PC test contradicted parts, see [STATUS.md](STATUS.md)) |
 | Last updated | 2026-10-21 |
 
-> **Current Ist/Soll:** [STATUS.md](STATUS.md) — verified state, known defects, owner
+> **Current Ist/Soll:** [STATUS.md](STATUS.md) — verified state, known defects, design
 > requirements and the gap table. Detailed working notes: [NOTES.md](NOTES.md) and
 > [notes/](notes/).
 
@@ -19,7 +19,7 @@ single-player survivors-like: one dwarf, one cave, and no networking code of any
 assemblies. Playing together therefore means building co-op from scratch as a mod — there is no
 "finish the existing mod" path, which is why this page records a from-zero effort.
 
-An unpublished prototype (two instances on one PC) **aims to cover** the whole run loop. **Caveat:**
+The prototype ([Reudo/drg-survivor-coop](https://github.com/Reudo/drg-survivor-coop), two instances on one PC) **aims to cover** the whole run loop. **Caveat:**
 the list below is what the one-PC automated runs measured; the first real two-PC test (2026-10-21)
 showed that some of it does not hold yet (different maps through a seed race, the client's dwarf
 shown wrongly on the host, a downed player able to move, no host unlocks by default; see
@@ -110,7 +110,7 @@ any transport you bring.
 
 ## What we changed
 
-Unpublished prototype: a BepInEx IL2CPP plugin using Harmony for hooks and LiteNetLib (the
+The prototype is a BepInEx IL2CPP plugin using Harmony for hooks and LiteNetLib (the
 transport Nitrox uses) over UDP. Roles are selected in an in-game host/join panel; the automated
 harness can still pin them with command-line flags. A claim counts only when **both** sides produced
 evidence; a timeout is not evidence.
@@ -216,7 +216,7 @@ evidence; a timeout is not evidence.
 - **Enemy HP follows the host; damage numbers stay personal.** The `EnemySnapshot` now carries each
   enemy's host hp, and the client applies it **damage-only** (`hp = min(local, host)`), so a host hit
   lowers the mirror's bar and a stale snapshot can never heal it. The client's own weapons already
-  damage the mirror locally, so its numbers appear immediately; by the owner's decision it does not
+  damage the mirror locally, so its numbers appear immediately; by the design decision it does not
   display the host's numbers, and no host→client number event exists. *Test:* client
   `snapSeen=11 equal=6 drops=1/82 above=4`; with `-coophpsoff` the client fails on state
   (`snapEntries=31 hpSeen=0`) instead of timing out.
@@ -337,7 +337,7 @@ Plain words, what a player would notice today:
   (visibility flags, render callbacks, reading a frame back) turned out to be unusable in this build.
   **Grenades are mirrored** (including to a partner without that grenade, who equips it at run start)
   and muzzle flashes follow the weapon's own `FlashSettings`. Enemy HP now follows the host; the
-  client shows only its own damage numbers (owner decision), so those numbers are immediate.
+  client shows only its own damage numbers (design decision), so those numbers are immediate.
 - **Enemies only ever chase the host's dwarf.** The client is hit when it walks into the swarm, but it
   does not pull aggro. Changing that needs a second real `Player` on the host, not a retarget.
 - **The held weapon is not shown.** The class-mod skin is applied on the partner; the game has no
@@ -368,12 +368,12 @@ In the order that makes sense:
    adopted grenade is intended, so no distinct-loadout variant.
 2. **Aggro for the second player** — ideally by giving the host a second real `Player`, or by first
    proving that an unfrozen mirror chooses the client on its own.
-3. **The objective rules the owner asked for:** standing in a circle faster with both dwarves, a drill
+3. **The objective rules requested:** standing in a circle faster with both dwarves, a drill
    that needs both, one supply pod with a personal artifact choice, one Bosco per player (the Bosco
    mirror is done; the objective rule is not).
 4. **Cosmetics:** the class-mod skin is verified; the explicit held-weapon prop is not applicable.
 5. **Steam lobby and invite, last** (Spacewar AppID 480 is the usual route to a free relay). The
-   in-game host/join panel for LAN/direct IP is done; the Steam piece needs the owner's approval and a
+   in-game host/join panel for LAN/direct IP is done; the Steam piece needs explicit approval and a
    second Steam account/session, so it is the final step rather than the next one.
 
 Two habits save time here: measure before designing (more than one "obvious" bug turned out to be the

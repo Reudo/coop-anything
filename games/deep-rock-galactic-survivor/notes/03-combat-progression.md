@@ -457,7 +457,7 @@ dwarf. "Host aggro on the puppet" is not a target reassignment; it needs a secon
 host (DI init, HUD, camera). Consequence today: the swarm follows the host, and the client is hit because
 it stands in the same space - not because the enemies chose it.
 
-**Owner decision (18:40):** the partner *should* ideally have its own aggro, but this is **recorded as a
+**Design decision (18:40):** the partner *should* ideally have its own aggro, but this is **recorded as a
 later goal and deliberately not prioritised now**. Parked in PLAN.md B2 and in the plan file under
 "Später (bewusst NICHT priorisiert)". The cheap thing to try first when it is picked up is dropping
 `SetAgentEnabled(false)` to see whether an unfrozen mirror chooses the client by itself; the proof has to
@@ -673,7 +673,7 @@ instances on different save slots, and it gives the saves back afterwards.
 **Not measured yet:** I2 - how a run end turns stats into rank, mastery and milestones. That is the
 plan's second unknown and the prerequisite for crediting the client's progress to the host.
 
-## Two separate save profiles - and giving the owner's saves back (build 20:24)
+## Two separate save profiles - and giving the player's saves back (build 20:24)
 
 I1 needs the host and the client to have *different* profiles, otherwise there is nothing to adopt. Two
 things had to be fixed before that could even be tested.
@@ -694,7 +694,7 @@ host   check: saves peerSlot=1 mySlot=0 separateFiles=yes sameProfile=yes
 
 **But the slots hold the same progression.** `sameProfile=yes`: Slot1 and Slot2 both report
 `cls=4 wpn=29 art=13 mod=9 oc=0 meta=18`. So pointing the two instances at different slots separates the
-*files* but not the *content* - the owner has played all three slots to the same point. That matters for
+*files* but not the *content* - a tester has played all three slots to the same point. That matters for
 the test design, and it is why the `saves` verdict is "different files", not "different numbers": the
 latter would fail for a reason that has nothing to do with the code under test. I1 will instead *scrub*
 the client's unlock lists in memory before the wizard, so the host has something real to give it.
@@ -703,7 +703,7 @@ The same measurement answered a second question: the client's profile travels ov
 (`ProfileReport = 18`, plain ints like the rest of the handshake), so the host compares against numbers
 the client actually holds rather than against what the host hoped it sent.
 
-**The harness was writing the owner's saves and never restoring them.** `Backup-Saves` copied the profile
+**The harness was writing the player's saves and never restoring them.** `Backup-Saves` copied the profile
 before a test and nothing ever put it back - so every test run left its progress in the real save. That
 is fixed: `Restore-Saves` runs in the `finally` after the game processes are gone, and it verifies itself
 against the backup. Two things came out of doing that honestly:
@@ -786,7 +786,7 @@ strong it is*. I2 (crediting the client's progress back to the host at run end) 
 
 ## The corpse that keeps walking: `Die` runs, the animator never comes back - FIXED (build of 23:06)
 
-Owner-reported: "the other dwarf sometimes keeps running around as a corpse after a revive." Measured, and
+Reported in play-testing: "the other dwarf sometimes keeps running around as a corpse after a revive." Measured, and
 the cause is not where it looks:
 
 ```
@@ -867,7 +867,7 @@ at all (`CoopPuppet` drives only position), which is a separate item.
 
 ## Both down ends the run - and two ways the first attempts were wrong
 
-Owner decision: when both dwarves are down, the run ends the way it does in solo. The owner also supplied
+Design decision: when both dwarves are down, the run ends the way it does in solo. A tester also supplied
 the mechanism behind the game's *own* natural end, which is worth writing down because it explains every
 unforced end in this session: **the first elite dies, the transport-capsule phase starts with a short
 countdown (21 s in the observed case), and missing the capsule ends the run immediately** -
@@ -907,7 +907,7 @@ question here.
 
 ## The loan ends with the run, and the client keeps what it earned (build 21:56)
 
-**Owner decision** (asked, because the two rules contradicted each other): the client keeps its own earned
+**Design decision** (asked, because the two rules contradicted each other): the client keeps its own earned
 progress, and only the borrowed data stays borrowed. Nothing in I1's transfer and nothing in I3's block was
 weakened to get there - instead the loan is now *given back* at the moment the run ends, so the game's own
 save then writes a profile that is the client's plus everything it earned while playing.
@@ -932,7 +932,7 @@ wired up. The loan's life now hangs off the adoption, not the run start.
 
 **Verified at the file level, not from the mod's own log lines.** The save files are **JSON**
 (`drg_save_slot{N}_{rotation}.dat`, `{"Version":9,...}`), so the runner now copies the used slots into the
-run archive before restoring the owner's saves, and the end state can simply be read:
+run archive before restoring the player's saves, and the end state can simply be read:
 
 ```
 client  check: loan ended why=rankXp wpn=29->0 cls=0 metaSum=90 gear=0
@@ -1199,7 +1199,7 @@ Three facts in one line, none of them visible before:
 "WeaponSaveData":[],"BiomeSaveData":[],"MutatorSaveData":[],"ClassModSaveData":[]
 ```
 
-That is the owner's own played slot read straight out of a backup, not a runtime misread - all four mastery
+That is a played slot read straight out of a backup, not a runtime misread - all four mastery
 lists are empty and a played run creates no entry in any of them. It matches the profile's run-type page,
 where only the campaign Mission Road is unlocked and **Mastery is `[unavailable]`**. So the plan's "mastery
 write path" item is **blocked on a fixture, not open**: it needs the Mastery mode unlocked (or a profile
@@ -1236,7 +1236,7 @@ progress, not measured on the client. And mastery remains unmeasurable here.
 
 ## The partner's dwarf: the puppet now plays the pose the remote is actually in (build 00:01)
 
-The other half of the owner's "corpse" report, and the half the earlier fix did not touch: the local dwarf's
+The other half of the "corpse" report, and the half the earlier fix did not touch: the local dwarf's
 pose is repaired, but the *partner* sees a `CoopPuppet` that was driven from position and rotation only.
 A downed dwarf stops moving, so the puppet came out as `Idle` - a dwarf standing there where the partner's
 screen should show a corpse.
@@ -1367,7 +1367,7 @@ thing to read, from the periodic log line, not the verdict.
 ## The shop between stages is reachable, and the currency now runs both ways (build 01:52)
 
 Milestone D had one half left: the level-up cards are done, the post-stage shop was not. It is now
-reachable on purpose and its economy is measured - and the owner settled the design question in the middle
+reachable on purpose and its economy is measured - and the design question was settled in the middle
 of it.
 
 **A stage end can be forced, and that is what opens the shop.** Waiting for a stage to end by itself is the
@@ -1387,7 +1387,7 @@ personal: the game's own chain runs `Show -> SelectBestButton -> OnButtonSelect 
 two instances bought *different* items (`WeaponUpgradeSkill_Damage` vs `SupportSkill_Armor`), each paid from
 its own wallet. **The mod presses nothing in the shop** - all six shop hooks are listeners.
 
-**The owner's decision, because it is not what the code did:** each player has their **own shop** (the
+**The design decision, because it is not what the code did:** each player has their **own shop** (the
 rewards are personal - a weapon upgrade improves *that* player's weapon), but the **currency is shared**:
 claims run in both directions and both sides always credit, so the two wallets stay identical. Plus a shop
 barrier like the level-up one - **built and measured further down**.
@@ -1413,7 +1413,7 @@ client: claimsSent=2 claimsRecv=7 miss=0 credited=7 walletDelta={GOLD=+3 NITRA=+
 
 The directions mirror each other exactly (7/2 against 2/7), every received claim found its local copy
 (`miss=0`), every one credited once (`credited == claimsRecv`) - and **the two wallets rose by the same
-amount**, which is the thing the owner asked for. PASS on both roles, twice.
+amount**, which is the thing requested. PASS on both roles, twice.
 
 **Two defects found on the way, both of the silent kind this project keeps paying for:**
 
@@ -1519,7 +1519,7 @@ is untested.
 
 ## The shop barrier: built, and the two bugs it took (build 02:09)
 
-The owner asked for it ("Ja, Barriere wie beim Level-up"), and it is in: `UIShopScreen.OnPlayButton` is held
+It was requested ("Ja, Barriere wie beim Level-up"), and it is in: `UIShopScreen.OnPlayButton` is held
 with a `false`-returning prefix until the peer reports done, and released by re-invoking that same method -
 the shape `CoopXp` already uses on `LevelUpManager.OnLevelUpFinished`. The message is a new packet
 (`ShopDone = 21`), its own type for the same reason `AnimState` has one: an older build ignores an unknown
@@ -1579,9 +1579,9 @@ right, the second was wrong: **a stage end did not reach the other instance at a
 written up in the next section. The barrier itself behaves correctly in both orders, which is what this
 fixture could measure.
 
-## Owner observations, recorded for later (2026-10-19)
+## Play-test observations, recorded for later (2026-10-19)
 
-Four points the owner raised after a play session. Recorded with what the code does *today*, so the next
+Four points raised after a play session. Recorded with what the code does *today*, so the next
 session starts from facts instead of re-reading everything. None of these is built unless stated.
 
 ### 1. Revive amount: flat or percentage? (DECIDED — 50% of max hp, `-coopreviveflat` keeps 100)
@@ -1733,7 +1733,7 @@ being selected for that seed; the actual progress is the separate `ObjectiveProg
   no role flags. The end-to-end `-Ui -Arena -Test arena` run also PASSed (`cleared=26`, `peer=1`,
   `peerMirrors=1`) with UI-selected roles. The `ui` test fails at 45 s if either role or the peer is
   missing.
-- **Not included:** Steam lobby/relay/invite. That needs the owner's Steam account and explicit
+- **Not included:** Steam lobby/relay/invite. That needs a Steam account and explicit
   approval; the current UI is LAN/direct-IP only (UDP 9050 by default, same game build on both
   sides). F8 hides the panel; the command-line role path remains for every other test.
 
@@ -1797,7 +1797,7 @@ Three things this run changed beyond the feature:
 
 ## Run-start load barrier (2026-10-19)
 
-Owner requirement: the host starts the run; the client adopts every setting and only picks its own
+Design requirement: the host starts the run; the client adopts every setting and only picks its own
 character; and the two runs must not begin until **both** sides have finished loading. Settings
 adoption already did the second part. The timing problem was real: in the runs above the host's
 `StartGame` and the client's were **14-16 s apart**, so one dwarf was already in the cave while the
@@ -1899,7 +1899,7 @@ for the extreme case (a player who runs far away).
 
 ## Enemy hp sync; the client keeps its own damage numbers (2026-10-19)
 
-Owner clarification: the client must not see the host's damage numbers - its own are enough. I had
+Design clarification: the client must not see the host's damage numbers - its own are enough. I had
 built a host->client `EnemyDamage` channel first (client `events=10 total=400 text=10/0` through
 `DamageTextAnimationSystem.SpawnText`, which needs `PreWarm()` on the `DamageTextSystem(Clone)`),
 measured it, and then removed it. What was actually missing was the health value.
@@ -1945,7 +1945,7 @@ manager through `Resources.FindObjectsOfTypeAll`, caches it, and logs found/MISS
 
 ## Weapon coverage, per-handler vs per-weapon, and the muzzle origin (2026-10-19)
 
-Owner question: does every weapon need its own code? **No for projectile weapons.** The Fire hook sits
+Open question: does every weapon need its own code? **No for projectile weapons.** The Fire hook sits
 on `ProjectileWeaponHandler.ShootProjectileInDirection`; the peer resolves
 `ProjectileWeaponSkillData` by asset name and uses that asset's `ProjectilePrefab` and
 `ProjectileSettings`. One code path serves all of them. Per-weapon **testing** is still needed because
@@ -2027,7 +2027,7 @@ The `weapons` test is per-role and excludes a skill this side fired from `missin
 mirrors it; it is not echoed back to the sender). PGL, TH0R and the continuous rotating beam are
 green; the untested variants of the continuous path are named above rather than implied done.
 
-**Origin bug (owner: "the client's projectiles come from the wrong direction").** `OnLocalShot` used
+**Origin bug (tester: "the client's projectiles come from the wrong direction").** `OnLocalShot` used
 `Player.FirePoint` for every handler. Bosco/drone handlers fire from their own
 `WeaponHandler.firePoint`, so the mirror started at the dwarf's gun. Measured (`20261019-214847-hpsync`,
 client): `from=(51.6,1,84.5) handlerFP=(51.6,1,84.5) playerFP=(53.6,1,82.4)`,
@@ -2042,7 +2042,7 @@ missing handler. In normal play the bar weapon is the one the player fires.
 
 ## The partner's projectiles were gated off by default (2026-10-19)
 
-Owner observation: both players fire their own weapons, but nothing from the partner is visible.
+Play-test observation: both players fire their own weapons, but nothing from the partner is visible.
 Cause: `CoopCombat.Enabled` defaulted to **false** and was only switched on by `-cooptrace`/`-Mirror`.
 The Fire packet was received and `Flash(e)` played the muzzle light, but `SpawnMirrorProjectile`
 returned immediately, so the peer never spawned a visual. This was the B3 experiment gate, not a
@@ -2091,7 +2091,7 @@ path on a mirror.
 
 ## Enemy mirror smoothing + facing (2026-10-20)
 
-Owner observation #3 is fixed: the client no longer teleports mirrors at the 2 Hz snapshot rate, and
+Play-test observation #3 is fixed: the client no longer teleports mirrors at the 2 Hz snapshot rate, and
 the host's facing now reaches the mirror.
 
 - **Wire:** `SnapEntry` carries a packed yaw byte (0..255 = 0..360 degrees). The entry is 17 bytes;
@@ -2137,7 +2137,7 @@ the host's facing now reaches the mirror.
 
 ## XP orb sync (2026-10-20)
 
-Owner observation #4 is fixed: both instances now see the same XP orbs and each orb grants once.
+Play-test observation #4 is fixed: both instances now see the same XP orbs and each orb grants once.
 
 - **Spawn:** a postfix on `XPManager.Spawn(Vector3, float)` sends packet 30 with the quantized
   position and the force modifier. The host is the only sender; the client applies it inside

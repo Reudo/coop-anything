@@ -41,18 +41,17 @@ game's own type and member names as seen through the generated interop; no game 
   the client followed with `stage: peer ended its stage`). This is the evidence for goal step 2 on the host side.
 - `worlddiff` was missing from the lobby-path list in `coop-run.ps1` (the run sat at the splash); added.
 
-## Startup crash found and fixed (2026-10-21 afternoon) - not RDP
+## Startup crash found and fixed (2026-10-21 afternoon)
 
 Symptom: both game instances died 5 s after launch (`coreclr.dll`, access violation, always the same offset `+0x1d1fdd`; WER
-`APPCRASH`, minidumps in `%LOCALAPPDATA%\CrashDumps`). It looked like an RDP problem because the first cluster (11:51-11:54) and the
-second (14:01-14:02) happened while an RDP session was active, and the runs in between ran with it disconnected. The owner said the RDP
-session had always been open, so it was measured:
+`APPCRASH`, minidumps in `%LOCALAPPDATA%\CrashDumps`). It looked like an environment problem because the first cluster (11:51-11:54) and the
+second (14:01-14:02) happened while an interactive desktop session was active, so it was measured:
 
 | Check | Result |
 |---|---|
-| Game without BepInEx (`--doorstop-enabled false`), RDP active | runs, no crash |
-| BepInEx without the plugin, RDP active | runs, no crash |
-| BepInEx + plugin, RDP active | crash at 5 s (also with no co-op flags) |
+| Game without BepInEx (`--doorstop-enabled false`), interactive session active | runs, no crash |
+| BepInEx without the plugin, interactive session active | runs, no crash |
+| BepInEx + plugin, interactive session active | crash at 5 s (also with no co-op flags) |
 | plugin with every Harmony patch skipped (`-coopskip=all`) | runs |
 | bisect over the patch list (`-coopskip=<names>`, 7 runs) | one patch alone crashes: `CoopDownedLockWeaponPatch` (`WeaponHandler.ActivateWeapon`) |
 | BepInEx log before the crash | `During invoking native->managed trampoline ... NullReferenceException at DMD<WeaponHandler::ActivateWeapon>` (and later `DMD<TNTDetonator::Die>` for the escort hook) |
@@ -65,10 +64,3 @@ lock now pauses the dwarf's weapon handlers (`WeaponHandler.paused`) while downe
 install at the first `StartGame` (`ProbePlugin.InstallLate`). Rule for future hooks: never hook a method the game calls during title-scene
 startup; install late, keep the hook body in try/catch, and prefer state changes over hooks. Bisect aids kept in the plugin: `-coopskip=`,
 `-coopbreadcrumbs`, `-coopguimask=`, `-coopnolate`.
-
-## Environment note (superseded by the section above)
-
-First hypothesis, **refuted** (see the section above): Unity crashes in `coreclr.dll` (access violation) at startup while an interactive RDP session is **active** on the test PC.
-It ran fine while the session was disconnected. After the owner connected, the old shipped DLL crashed too
-(`20261021-115426-menu`, WER `APPCRASH coreclr.dll c0000005`), so this is not caused by the mod. Unattended runs need the
-session disconnected.
