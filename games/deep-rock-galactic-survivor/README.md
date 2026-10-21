@@ -4,9 +4,13 @@
 |---|---|
 | Engine | Unity 6 (IL2CPP, metadata v39) |
 | Versions tested | Steam build `23854500` (Windows) |
-| Projects | none published — an unpublished prototype is described below |
-| QA level | automated (with caveats, see [QA](#qa)) |
-| Last updated | 2026-10-20 |
+| Projects | [drg-survivor-coop](https://github.com/Reudo/drg-survivor-coop) (experimental prototype, MIT) |
+| QA level | automated on one PC only; not human-confirmed (first two-PC test contradicted parts, see [STATUS.md](STATUS.md)) |
+| Last updated | 2026-10-21 |
+
+> **Current Ist/Soll:** [STATUS.md](STATUS.md) — verified state, known defects, owner
+> requirements and the gap table. Detailed working notes: [NOTES.md](NOTES.md) and
+> [notes/](notes/).
 
 ## Where things stand
 
@@ -15,23 +19,32 @@ single-player survivors-like: one dwarf, one cave, and no networking code of any
 assemblies. Playing together therefore means building co-op from scratch as a mod — there is no
 "finish the existing mod" path, which is why this page records a from-zero effort.
 
-An unpublished prototype (two instances on one PC) now covers the **whole run loop**, not only the
-dwarves seeing each other: same cave, both dwarves visible and animated, host-authoritative enemies,
+An unpublished prototype (two instances on one PC) **aims to cover** the whole run loop. **Caveat:**
+the list below is what the one-PC automated runs measured; the first real two-PC test (2026-10-21)
+showed that some of it does not hold yet (different maps through a seed race, the client's dwarf
+shown wrongly on the host, a downed player able to move, no host unlocks by default; see
+[STATUS.md](STATUS.md), section "Contradicted by the first real two-PC test"). Measured in the
+harness: same cave, both dwarves visible and animated, host-authoritative enemies,
 shared loot and mined terrain, shared XP with a per-player card choice, mirrored objectives, a shop
 after each stage that waits for the partner, stage ends that actually reach the other instance, a
 downed/revive state, and a client that plays the run on the **host's unlocks** while keeping the
-progress it earns. Every claim below was measured on two real game clients through a scripted harness,
-never by eye.
+progress it earns. Every claim below was measured on two real game clients on one PC through a scripted harness,
+not by a human on two PCs.
 
 Both dwarves now also **wait for each other at the start of a run**: each side reports its level as
 loaded, the faster one stays paused, and the host releases both together. The camera **frames both
 dwarves**, centring between them and dollying out as they separate.
 
 The start of a co-op run is now a real **lobby**: after the host/join panel both players land on an
-in-game screen in the game's look, the host sets mission, sector/node and hazard live, the client
-sees every change and picks only its class and class mod, and the host can start once the client is
-ready. The faster player also stays on the **loading screen** ("Fertig geladen - warte auf Spieler
-2") until the partner has loaded.
+in-game screen, the host sets mission, sector/node and hazard live, the client sees every change and
+picks only its class and class mod, and the host can start once the client is ready. The faster
+player also stays on the **loading screen** ("Fertig geladen - warte auf Spieler 2") until the
+partner has loaded.
+
+**Caveat on the lobby's look (2026-10-20):** the screen is built from cloned game UI, and on this
+build its panel/background/button **images are not drawn** — the mission art shows through and the
+text is faint. The flow, buttons and ready gate work, and `-LobbyIMGUI` draws a readable fallback.
+The *logic* is verified; the *look* is not. See [STATUS.md](STATUS.md).
 
 What is still missing is the last mile to a player: **no Steam invite or relay** (the in-game
 host/join panel plus the lobby handle direct IP/LAN), and enemies that only ever chase the host's
@@ -44,11 +57,11 @@ visual.
 
 ## Existing work
 
-Nothing published. Searches across GitHub, Nexus, ModDB and Steam found no co-op or multiplayer
+Before this project, nothing was published. Searches across GitHub, Nexus, ModDB and Steam found no co-op or multiplayer
 project, and a full search of the game's own assemblies found no transport, socket or Steam networking
 layer. The gap entry in `data/directory.yaml` records what was searched and when.
 
-The prototype described here is local: no repository, no release, no installer. It is written up so the
+The prototype is published as source at [Reudo/drg-survivor-coop](https://github.com/Reudo/drg-survivor-coop): no release, no installer, no DLL. It is written up so the
 next agent does not start at zero.
 
 ## How the game works (for co-op)
@@ -273,7 +286,7 @@ evidence from the peer, and no exception may appear.
 | Turret firing VFX | host `sent=5`, client `recv=5 applied=5 flashes=5`; PASS both (`20261020-131050-turretfire`); `-TurretFireOff` → FAIL `sent=0 recv=0` (`20261020-131227-turretfire`) |
 | Remote weapon prop | Not applicable: the game has no separate held-weapon model (`WeaponHandlers` is the shared empty container, 0 renderers; no `WeaponSkinData`/`WeaponModel` type). The class-mod skin is the character visual; the `weaponvisual` fail is expected and retired |
 | Co-op lobby state / ready gate | host rev=2 `blockedPeer=1 blockedStale=1 allowed=1`; client `state=2 choice=2 start=1`; PASS both (`20261020-054247-lobby-state`); `-LobbyNoReadyGate` → FAIL (`20261020-054515-lobby-state`) |
-| Co-op lobby screen | host `sectors=5 nodes=6 classes=5 mods=3 hazards=5`; host changes hazard → client sees rev=2, picks Engineer/Maintenance, ready; host start allowed; PASS both (`20261020-063928-lobby-ui`); `-LobbyUIOff` → FAIL (`20261020-063812-lobby-ui`) |
+| Co-op lobby screen (structure/clicks, **not pixels**) | host `sectors=5 nodes=6 classes=5 mods=3 hazards=5`; host changes hazard → client sees rev=2, picks Engineer/Maintenance, ready; host start allowed; PASS both (`20261020-063928-lobby-ui`, `20261020-172313-lobby-ui`); `-LobbyUIOff` → FAIL (`20261020-063812-lobby-ui`). **Visual: ❌ the cloned images do not draw — see [STATUS.md](STATUS.md)** |
 | Lobby start through the wizard | host Driller/Interrogator, client Engineer/Maintenance, same `main=0 biome=0 sector=0 node=0 hazard=1`; `run=1`; PASS both (`20261020-064751-lobby-start`) |
 | Loading screen waits | real `UILoadingForm` shown over the paused game with `Fertig geladen - warte auf Spieler 2`, hidden on release; host `shown=1 paused=1`, `held=1.4s`; PASS both (`20261020-123303-loadform`); `-LoadFormOff` → FAIL (`20261020-123406-loadform`) |
 | Game beam VFX | `BeamWeaponSkillData.BeamVFX` = `CryoBeam_VFX`, one live prefab; host `sent=56`, client `applied=68`, `game=1/0/0`, `fallback=0`; PASS both (`20261020-133051-beamgame`); `-BeamOff` → FAIL both (`20261020-133207`), `-GameBeamOff` → host PASS/client FAIL `fallback=68` (`20261020-133320`) |
@@ -288,6 +301,13 @@ stage that ends *by itself* has never been observed. Shop purchases and card pic
 fixtures that choose specific buttons, not by a human. The host/join panel test presses the IMGUI
 buttons at fixed client coordinates; a human has not clicked it in this run. There is no one-command
 suite: the launcher is local tooling, not part of a repo.
+
+**Visual caveat (2026-10-20).** The lobby test above asserts structure and clicks, not pixels. On the
+canonical menu path the cloned uGUI **images** do not draw (mission art shows through, text faint), so
+the lobby's look is currently broken even though its logic is verified. Use the menu-button path
+(`coop-run.ps1 -Menu -Test menu`) for UI QA; the `-cooplobby` shortcut is invalid for visuals because
+it builds the screen before the menu entry and produces a canvas that is active but not drawn. The
+current Ist/Soll and the evidence are in [STATUS.md](STATUS.md).
 
 ## How to play
 
@@ -305,6 +325,10 @@ harness keeps `-coophost` / `-coopclient` for the other tests and has a separate
 
 Plain words, what a player would notice today:
 
+- **The co-op lobby is semi-transparent and hard to read.** Its panel, background and button images
+  are not drawn on this build, so the mission screen shows through; the text is faint. The buttons
+  still work. `-LobbyIMGUI` draws a readable fallback. This is a rendering defect in the cloned UI,
+  not missing logic.
 - **You cannot invite a friend through Steam yet.** The in-game panel handles LAN/direct IP, but there
   is no Steam relay/invite flow; for a WAN connection the host's UDP port (9050 by default) must be
   reachable.
@@ -330,6 +354,10 @@ Plain words, what a player would notice today:
 - **Run the mod from a copy of the game**, never the Steam install, and keep Steam running.
 
 ## Next steps
+
+First, **UI stability**: fix (or replace) the cloned lobby images so the panel is opaque and
+readable, then capture the connect screen and the lobby on the canonical menu path. The logical flow
+and the tests already pass; the open work is the draw path. See [STATUS.md](STATUS.md).
 
 In the order that makes sense:
 

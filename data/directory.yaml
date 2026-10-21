@@ -5958,31 +5958,21 @@
 - game: 'Deep Rock Galactic: Survivor'
   year: 2024
   engine: Unity 6 (IL2CPP)
-  project: '(none found)'
-  url: ''
+  project: drg-survivor-coop
+  url: https://github.com/Reudo/drg-survivor-coop
   other_urls: []
-  kind: gap
-  status: none
-  coop_scope: {}
-  players: unknown
-  networking: unknown
-  open_source: unknown
-  last_activity: unknown
-  qa: none
-  notes: No published co-op or multiplayer mod, and the shipped assemblies contain no networking code at
-    all - a full search of the game's own code turned up no transport, socket or Steam networking layer.
-    Co-op therefore has to be built from scratch as a mod. An unpublished local prototype (two instances on
-    one PC, host-authoritative) now covers the run loop - same cave, both dwarves visible and animated, an
-    in-game lobby where the host sets mission/sector/node/hazard live and the client only picks class +
-    class mod, a ready gate and wizard start, a loading screen that waits for the partner, host-owned
-    enemies, shared loot/terrain/XP/objectives, per-player shops and upgrades, stage ends that reach the
-    partner, downed/revive, mirrored turret/beam/Bosco visuals, and a client playing on the host's unlocks
-    with its earnings kept - with an automated two-client harness behind every claim; written up in
-    games/deep-rock-galactic-survivor/. It has no release, so the directory keeps this as a gap.
-  sources: []
-  checked: '2026-10-20'
-  searched:
-  - 'Full search of the shipped game assemblies for networking APIs (none found)'
-  - 'WebSearch: co-op / multiplayer mod for Deep Rock Galactic Survivor across github.com, nexusmods.com,
-    moddb.com, steamcommunity.com (none found)'
-  - 'Not checked: official Discord history for developer statements; Reddit not checked'
+  kind: mod
+  status: prototype
+  coop_scope:
+    players_visible: partial
+  players: '2'
+  networking: direct-ip
+  open_source: 'yes (MIT)'
+  last_activity: 2026-10
+  qa: automated
+  notes: Host-authoritative BepInEx/LiteNetLib prototype, direct IP only. The automated runs use two
+    clients on ONE PC; the first real two-PC test went badly, so treat it as experimental. Details in
+    games/deep-rock-galactic-survivor/.
+  sources:
+  - https://github.com/Reudo/drg-survivor-coop
+  checked: '2026-10-21'
