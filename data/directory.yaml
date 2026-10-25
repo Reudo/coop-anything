@@ -7212,11 +7212,11 @@
     world_state: yes
     items: per-player
   players: '2'
-  networking: steam-relay
-  open_source: 'yes (MIT)'
+  networking: unknown
+  open_source: yes
   last_activity: 2026-10
   qa: automated
-  notes: Local co-op for two controllers on one PC (a BepInEx 6 IL2CPP plugin; the second dwarf is a second player object in the same game process, no network code). Elimination and Escort missions. Online with a friend through Steam Remote Play Together (invite works, not tested screen by screen). Full runs hand-tested with two controllers by the owner; harness checks have twin flags that turn them red. Known gaps in the repo README (end-screen damage numbers probably inaccurate, DLCs not supported and not tested). Release 1.0.0 with installer.
+  notes: 'Local co-op for two controllers on one PC (a BepInEx 6 IL2CPP plugin; the second dwarf is a second player object in the same game process). Licence: MIT. It has no network code of its own; online play with a friend only works through Steam Remote Play Together (Steam''s own streaming; the invite works, not tested screen by screen). Elimination and Escort missions. Automated QA, one PC, test copy of the game with virtual gamepads (harness in the repo, tools/batch_*.ps1), every check has a twin flag that turns it red. Results 2026-10-21 to 2026-10-23 (run ids in the repo''s PLAN.md): main menu 11/11, real mouse clicks 5/5, real start from the menu (class and mission read back from the live second dwarf), menu locks 10/10 (twin 6 ok, 4 fail), bonus mirror 5/5 (twin 0/5), pause menu per player 5/5 (twins red), retry run 7/7, revive and loot-crate tests green (twins red). The author has also played several full runs by hand with two controllers: no game-breaking bugs, at most small visual ones such as a wrong UI display; no independent report yet. Known gaps in the repo README (end-screen damage numbers probably inaccurate, DLCs not supported and not tested). Release 1.0.0 with installer.'
   sources:
   - https://github.com/Reudo/drg-survivor-local-coop
   checked: '2026-10-24'
