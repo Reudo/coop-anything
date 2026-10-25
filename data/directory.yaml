@@ -1251,7 +1251,7 @@
   qa: none
   notes: Stock campaign maps as a listen or dedicated server; Lua mod pak plus an ASI that hooks CryGame.dll 1.4
     (snapshot budget, area triggers for remote players). Also written, but untested in game (joining through a Steam Spacewar relay,
-    the launcher lobby and player shirt colors). 0.2 beta, 2 players checked by hand. Host saves (autosave at checkpoints, save and load commands) keep players and dead enemies, not mission progress. No helicopters or cutscenes for clients. MIT license.
+    the launcher lobby and player shirt colors). 0.2 beta, 2 players checked by hand. Host saves (autosave at checkpoints, save and load commands) keep players and dead enemies, not mission progress; a difficulty setting. A sweep of the 20 levels found 18 that load; Treehouse and Swamp crashed at the load and load now with a workaround (baked physics states are skipped). Helicopters follow once they move on the host; no cutscenes for clients. MIT license.
     Write-up in games/far-cry.
   sources:
   - https://github.com/Bantila/FarCryCoop/tree/main
@@ -6489,10 +6489,9 @@
 - game: Clive Barker's Jericho
   year: 2007
   engine: MercurySteam ScrapEngine (Scrapland engine, Lua 5.1)
-  project: Jericho Co-op
+  project: Jericho Co-op+
   url: https://github.com/dolbaras/jericho-coop
-  other_urls:
-  - https://github.com/MAK-PIVO/jericho-coop
+  other_urls: []
   kind: mod
   status: alpha
   coop_scope:
@@ -6507,17 +6506,22 @@
   last_activity: 2026-10
   qa: automated
   notes: Whole campaign, each player controls one squad member, AI keeps the rest; two players can share one PC in
-    split screen. Test builds with an installer (0.2.1). LAN/direct IP over ENet or Steam lobbies (runs as Spacewar),
-    in a dinput8.dll proxy (the exe's code is not patched); host-authoritative enemies, story, scenes, powers, doors and saves; QTE
-    and cutscene view are session settings. The whole campaign runs in automated tests over a LAN between two PCs;
-    human playthroughs just started. MIT. The MAK-PIVO fork's Steam, shared QTE, sync and boss/power work was merged
-    back in 0.2.1. Write-up in games/clive-barkers-jericho.
+    split screen. Version 0.2.7 (called Jericho Co-op before 0.2.4); the host is Ross's soul and the second
+    player Jones's astral projection, both switching bodies as in the original, players 3-4 keep their character;
+    display mode and refresh rate in the game's Video settings; starts without a mouse. Installer window and a shortcut that installs newer
+    releases from GitHub before each start, in six languages. LAN/direct IP over ENet or Steam lobbies (runs as
+    Spacewar), in a dinput8.dll proxy (two engine faults handled in memory, a split screen crash and a NULL read at
+    the last boss; the exe file only gets the large-address-aware flag); host-authoritative enemies, story, scenes,
+    powers, doors, breakable and movable objects and saves; each fire team follows its own player. The whole
+    campaign runs in automated tests over a LAN between two PCs, every story split with a real host and client; a
+    first human session over Steam (missions 1-8) was fixed up in 0.2.2, a full human playthrough is still to come.
+    MIT. The MAK-PIVO fork's (no longer public) Steam, shared QTE, sync and boss/power work was merged back in
+    0.2.1. Write-up in games/clive-barkers-jericho.
   sources:
   - https://github.com/dolbaras/jericho-coop
   - https://github.com/dolbaras/jericho-coop/releases
-  - https://github.com/MAK-PIVO/jericho-coop
   - https://github.com/cranebeaker/coop-anything/issues/27
-  checked: '2026-10-22'
+  checked: '2026-10-23'
 - game: Poppy Playtime
   year: 2021
   engine: Unreal Engine 4
@@ -7067,11 +7071,11 @@
   other_urls:
   - https://discord.com/channels/1561411702082510879/1562166509659230338
   kind: mod
-  status: prototype
+  status: alpha
   coop_scope:
     players_visible: 'yes'
     story: 'no'
-    enemies: unknown
+    enemies: 'no'
     world_state: partial
     items: partial
   players: '2'
@@ -7079,15 +7083,19 @@
   open_source: 'yes'
   last_activity: 2026-10
   qa: automated
-  notes: Two-player research prototype on Unreal's own listen-server netcode, driven by a UE4SS Lua mod. Automated
-    two-instance tests on one PC pass for joining, riding as a passenger, rejoining, map travel, shared world items,
-    a shared car trunk and car health, fuel and battery following the host. Inventories are per player; quests,
-    crafting and the host's saves are not synced. Only tested on localhost (host needs UDP 7777 reachable) with
-    Steam build 21896301. Earlier, a 2024 fan attempt was frozen. MIT.
+  notes: Two-player alpha on Unreal's own listen-server netcode, driven by a UE4SS Lua mod, with an installer that
+    sets up UE4SS, updates the mod from GitHub releases and collects logs (release v0.8.0). Automated two-instance
+    tests pass for joining and rejoining, riding as a passenger, map travel, shared world items, a shared car trunk,
+    car part health, fuel and battery following the host, item state (fuel, charge, durability), player 2's refuel
+    and charge, player 2's saved inventory, and down/revive/team death; one live session over the internet (Radmin
+    VPN) was played. In progress on the main branch, the host's generated zone content (abandoned cars, props, doors,
+    containers) replicated to player 2, door state shared both ways, lootable containers holding the host's items.
+    Not synced yet are quests and progress, hazards and weather, and which car parts are installed; player 2 cannot
+    drive. Host needs UDP 7777 reachable. Steam build 21896301. MIT.
   sources:
   - https://github.com/BroZYTnikkkk/pacific-drive-coop
-  - https://steamcommunity.com/app/1458140/discussions/0/604153001708376779
-  checked: '2026-10-20'
+  - https://github.com/BroZYTnikkkk/pacific-drive-coop/releases/tag/v0.8.0
+  checked: '2026-10-22'
   made_with_coop_anything: true
 - game: BattleTech
   year: 2018
@@ -7377,14 +7385,14 @@
   qa: automated
   notes: Native dinput8.dll bridge plus Lua injected through settings.lua. The host runs the world; clients mirror
     enemies, replay shots including delayed Doganboy grenades, share pickups, doors and checkpoints, follow level loads, and revive at a partner when
-    they go down. Steam friends-only lobbies (invite or lobby ID, no port forwarding) or direct UDP. Co-op saves and reconnect after a crash.
-    Text chat, pings, proximity voice, difficulty presets, controls presets, a launcher, couch (split-screen) co-op. Installer and a v0.1.0-alpha
-    pre-release; master is ahead of it. Automated checkpoint sweep of all 96 checkpoints with two real clients and a
-    host/client state diff (before the N-player change), plus 3- and 8-player suites; feature suites for the newer parts.
+    they go down. Cutscenes start together with a skip vote. Steam friends-only lobbies (invite or lobby ID, no port forwarding) or direct UDP, chosen in
+    a launcher. Co-op saves and reconnect after a crash. Text chat, pings, proximity voice, difficulty and controls presets, character and emote wheels,
+    couch (split-screen) co-op. Public alpha v0.2.0-alpha with an installer; before it, an automated ladder of 31 gates including all 96
+    checkpoints with two real clients and a host/client state diff.
   sources:
   - https://github.com/TommoDotCommo/mdk2-coop
   - https://store.steampowered.com/app/213350/
-  checked: '2026-10-22'
+  checked: '2026-10-23'
   made_with_coop_anything: true
 - game: Resident Evil 2 (2019 remake)
   year: 2019
@@ -7751,3 +7759,197 @@
   - 'GitHub repository search via the API: the witness multiplayer, witness coop, the witness randomizer, TheWitnessExplorer, witness64_d3d11 (no co-op project), 2026-10-22'
   - 'WebSearch (extended): The Witness Jonathan Blow multiplayer co-op mod; also randomizer / Archipelago client and engine queries (no co-op mod), 2026-10-22'
   - 'Not checked: Nexus Mods, ModDB, Reddit, archive.org, Steam guides in depth, the game or speedrun Discords, non-English communities'
+- game: Vanquish
+  year: 2010
+  engine: Platinum Engine (in-house, Havok physics)
+  project: (none found)
+  url: ''
+  other_urls: []
+  kind: gap
+  status: none
+  coop_scope: {}
+  players: unknown
+  networking: unknown
+  open_source: unknown
+  last_activity: unknown
+  qa: none
+  notes: No co-op or multiplayer mod found for the PC port (Steam 460810, 2017). The game shipped with no multiplayer at all and PlatinumGames said at release
+    they never built any. Modding on Nexus is limited to cheat tables, trainers and texture/skin packs. Build from zero would mean reverse engineering a closed
+    custom-engine binary (C++, Havok, script files in .pkg-style archives) with no netcode, no scripting layer and no same-engine co-op framework; see
+    games/vanquish for what is known and where to start.
+  sources:
+  - https://en.wikipedia.org/wiki/Vanquish_(video_game)
+  - https://www.eurogamer.net/no-multiplayer-modes-for-vanquish
+  - https://steamcommunity.com/app/460810/discussions/0/1333474229082146537/
+  - https://www.nexusmods.com/vanquish/mods/latest/
+  - https://www.pcgamingwiki.com/wiki/Engine:Platinum_Engine
+  checked: '2026-10-22'
+  searched:
+  - 'Repo DIRECTORY.md, games/, playbook and public GitHub issues and PRs for Vanquish (nothing), 2026-10-22'
+  - 'GitHub repository and code search via the API: vanquish (no co-op project; hits are a Kali tool, phone trees, a Sublime theme), 2026-10-22'
+  - 'WebSearch: Vanquish co-op mod / multiplayer mod / online mod, Nexus and ModDB mentions, Steam forums (requests only, no project), 2026-10-22'
+  - 'Not checked: archive.org, Reddit threads in depth, the game''s Discord (none found), Japanese-language communities (Bayonetta/Vanquish modders)'
+- game: The Last of Us Part II Remastered
+  year: 2025
+  engine: Naughty Dog proprietary
+  project: ProjectSync
+  url: ''
+  other_urls: []
+  kind: mod
+  status: prototype
+  coop_scope:
+    players_visible: yes
+    story: no
+    enemies: yes
+    world_state: unknown
+    items: partial
+  players: '2'
+  networking: unknown
+  open_source: unknown
+  last_activity: 2026-10
+  qa: none
+  notes: No public download as of 2026-10-23. Online co-op for No Return first, then the story campaign. A demo showed two
+    players in the safe house with movement, animations, weapons, backpack, flashlights, melee, enemy AI and damage
+    synced. Promised free and open source; no repository found yet.
+  sources:
+  - https://www.gamingbible.com/news/the-last-of-us-projectsync-co-op-mod-128815-20261018
+  - https://www.reddit.com/r/thelastofus/comments/1x8w74m/coop_for_no_return_in_the_last_of_us_part_ii/
+  checked: 2026-10-23
+  searched:
+  - GitHub repository and code search via API, web search for ProjectSync and leiden_core, 2026-10-23
+- game: The Last of Us Part II Remastered
+  year: 2025
+  engine: Naughty Dog proprietary
+  project: TLOU2 Co-op (Awperati)
+  url: https://github.com/Awperati/tlou2-coop
+  other_urls:
+  - https://github.com/Awperati/tlou2-coop/releases/tag/v0.1.0
+  kind: mod
+  status: prototype
+  coop_scope:
+    players_visible: unknown
+    story: unknown
+    enemies: unknown
+    world_state: unknown
+    items: unknown
+  players: '2'
+  networking: lan
+  open_source: partial
+  last_activity: 2026-10
+  qa: none
+  notes: Two-PC story co-op where player 2 takes the chapter companion. v0.1.0 (2026-10-17) has a tested network layer,
+    teleport, roster, overlay and loader, but the README says the game link is not mapped, so characters cannot be moved
+    in game yet. Targets the 2025-04-03 launch build (PE timestamp 67ED75F7). Public source has no license file. The
+    optional internet relay was not tested here.
+  sources:
+  - https://github.com/Awperati/tlou2-coop
+  - https://github.com/Awperati/tlou2-coop/releases/tag/v0.1.0
+  checked: 2026-10-23
+- game: The Last of Us Part II Remastered
+  year: 2025
+  engine: Naughty Dog proprietary
+  project: TLOU2 Multiplayer Mod (Speclizer)
+  url: ''
+  other_urls:
+  - https://x.com/Speclizer_
+  kind: mod
+  status: abandoned
+  coop_scope:
+    players_visible: unknown
+    story: unknown
+    enemies: unknown
+    world_state: unknown
+    items: unknown
+  players: '2-8'
+  networking: unknown
+  open_source: no
+  last_activity: 2026-09
+  qa: none
+  notes: PvP and experimental co-op work shown from January to September 2026; reached 4v4, five maps, loadouts and
+    leaderboards. Cancelled on 2026-09-14 after a letter from Sony Interactive Entertainment requesting it not be
+    released. Never released; do not revive.
+  sources:
+  - https://www.pcgamer.com/games/action/that-last-of-us-2-multiplayer-mod-everyone-was-looking-forward-to-has-been-killed-by-sony/
+  - https://www.pcgamer.com/games/action/the-last-of-us-multiplayer-mod-has-hit-a-big-milestone-as-it-prepares-for-launch-in-september
+  checked: 2026-10-23
+- game: The Last of Us Part II Remastered
+  year: 2025
+  engine: Naughty Dog proprietary
+  project: TLOU2 Co-op Hook (foufouadi)
+  url: https://github.com/foufouadi/TLOU2_Co-op
+  other_urls: []
+  kind: mod
+  status: abandoned
+  coop_scope:
+    players_visible: partial
+    story: no
+    enemies: no
+    world_state: no
+    items: no
+  players: '2'
+  networking: lan
+  open_source: partial
+  last_activity: 2026-08
+  qa: none
+  notes: One-commit experiment. Injects a DLL, syncs position between two instances over local UDP and spawns a visual
+    clone of Ellie on F10, but there is no independently controlled second player and no NPC state sync. Not
+    functional. Public source has no license file.
+  sources:
+  - https://github.com/foufouadi/TLOU2_Co-op
+  checked: 2026-10-23
+- game: Night in the Woods
+  year: 2017
+  engine: Unity 5.6.2p4 (Mono)
+  project: Night in the Woods Co-op prototype
+  url: https://github.com/SamuelAustin2001/night-in-the-woods-coop
+  kind: mod
+  status: prototype
+  coop_scope:
+    players_visible: 'no'
+    story: partial
+    enemies: unknown
+    world_state: partial
+    items: unknown
+  players: 2 (shared Mae)
+  networking: direct-ip
+  open_source: 'no'
+  qa: none
+  notes: Experimental host/client prototype. One-off loopback checks are not a verified playable release; normal dialogue choices, scripted effects, persistent saves, and a full story run remain unverified.
+  sources:
+  - https://github.com/SamuelAustin2001/night-in-the-woods-coop
+  - https://store.steampowered.com/app/481510/Night_in_the_Woods/
+  checked: '2026-10-22'
+- game: 'StarCraft II: Wings of Liberty'
+  year: 2010
+  engine: Blizzard SC2 engine
+  project: SC2Coop (campaign co-op launcher)
+  url: https://github.com/Cryswar/sc2-coop
+  other_urls:
+  - https://github.com/cranebeaker/coop-anything/tree/main/games/starcraft-2
+  kind: framework
+  status: alpha
+  coop_scope:
+    players_visible: yes
+    story: yes
+    enemies: yes
+    world_state: yes
+    items: shared
+  players: '2'
+  networking: steam-relay
+  open_source: yes
+  last_activity: 2026-10
+  qa: automated
+  notes: External launcher that runs the retail Wings of Liberty campaign maps of custom campaigns (WoL@Kit fan campaigns
+    and mods that keep Blizzard's campaign scripts) as two-player games through Blizzard's s2client API, on each player's
+    own install; both share player 1's army (or, on maps made for it, each has their own), each has their own hub.
+    Steam relay (Spacewar app id) or direct IP with UPnP. Code (MIT) and test releases since 2026-10-23. One-PC smoke test
+    (each mission launched from the hub, won by test command, back to the hub) passed for all 29 missions of one
+    WoL@Kit campaign and of three campaigns on Blizzard's scripts, and 4 missions of a fourth; two-PC sessions by
+    testers.
+  sources:
+  - https://github.com/Cryswar/sc2-coop
+  - https://github.com/cranebeaker/coop-anything/tree/main/games/starcraft-2
+  - https://github.com/Blizzard/s2client-proto
+  - https://github.com/Blizzard/s2client-proto/blob/master/docs/protocol.md
+  checked: '2026-10-23'
+  made_with_coop_anything: true
